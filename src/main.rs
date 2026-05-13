@@ -1,23 +1,19 @@
-use futures::StreamExt;
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Root, Theme, ThemeMode, TitleBar,
+    ActiveTheme, Root, Theme, TitleBar,
     button::{Button, ButtonVariants},
     checkbox::Checkbox,
     h_flex,
     slider::{Slider, SliderEvent, SliderState},
     v_flex,
 };
-use system_theme::{SystemTheme, ThemeScheme};
 
 pub struct App {
     enable_theme_switching: bool,
     lumens_slider_state: Entity<SliderState>,
-    lumens_threshold: f32,
-    lumens_slider_subscription: Subscription,
+    lumens_threshold: Entity<f32>,
     seconds_slider_state: Entity<SliderState>,
-    seconds_threshold: f32,
-    seconds_slider_subscription: Subscription,
+    seconds_threshold: Entity<f32>,
 }
 
 impl App {
@@ -29,16 +25,20 @@ impl App {
             SliderState::new()
                 .default_value(Self::DEFAULT_LUMENS_THRESHOLD)
                 .min(10.)
-                .max(15_000.)
+                .max(2000.)
         });
 
-        let lumens_slider_subscription =
-            cx.subscribe(&lumens_slider_state, |this, _, event: &SliderEvent, cx| {
-                if let SliderEvent::Change(value) = event {
-                    this.lumens_threshold = value.start();
-                    cx.notify();
+        cx.subscribe(&lumens_slider_state, |this, _, event: &SliderEvent, cx| {
+            match event {
+                SliderEvent::Change(value) | SliderEvent::Release(value) => {
+                    this.lumens_threshold.update(cx, |this, cx| {
+                        *this = value.start();
+                        cx.notify();
+                    });
                 }
-            });
+            };
+        })
+        .detach();
 
         let seconds_slider_state = cx.new(|_| {
             SliderState::new()
@@ -47,22 +47,25 @@ impl App {
                 .max(120.)
         });
 
-        let seconds_slider_subscription =
-            cx.subscribe(&seconds_slider_state, |this, _, event: &SliderEvent, cx| {
-                if let SliderEvent::Change(value) = event {
-                    this.seconds_threshold = value.start();
-                    cx.notify();
+        cx.subscribe(
+            &seconds_slider_state,
+            |this, _, event: &SliderEvent, cx| match event {
+                SliderEvent::Change(value) | SliderEvent::Release(value) => {
+                    this.seconds_threshold.update(cx, |this, cx| {
+                        *this = value.start();
+                        cx.notify();
+                    });
                 }
-            });
+            },
+        )
+        .detach();
 
         Self {
             enable_theme_switching: false,
             lumens_slider_state,
-            lumens_threshold: Self::DEFAULT_LUMENS_THRESHOLD,
-            lumens_slider_subscription,
+            lumens_threshold: cx.new(|_| Self::DEFAULT_LUMENS_THRESHOLD),
             seconds_slider_state,
-            seconds_threshold: Self::DEFAULT_SECONDS_THRESHOLD,
-            seconds_slider_subscription,
+            seconds_threshold: cx.new(|_| Self::DEFAULT_SECONDS_THRESHOLD),
         }
     }
 
@@ -76,31 +79,98 @@ impl App {
             }))
     }
 
-    fn lumens_slider(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn lumens_slider(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let lumens_threshold = self.lumens_threshold.read(cx);
+
         div()
+            .child("Ambient light threshold:")
             .child(
                 h_flex()
-                    .child(Slider::new(&self.lumens_slider_state))
-                    .child(Button::new("reset_lumens").label("Reset").primary()),
+                    .w_full()
+                    .gap_4()
+                    .child(
+                        Slider::new(&self.lumens_slider_state)
+                            .bg(cx.theme().accent)
+                            .cursor_pointer(),
+                    )
+                    .child(
+                        Button::new("reset_lumens")
+                            .label("Reset")
+                            .primary()
+                            .cursor_pointer()
+                            .on_click(cx.listener(|view, _, window, cx| {
+                                view.lumens_threshold.update(cx, |this, cx| {
+                                    *this = Self::DEFAULT_LUMENS_THRESHOLD;
+                                    cx.notify();
+                                });
+                                view.lumens_slider_state.update(cx, |this, cx| {
+                                    this.set_value(Self::DEFAULT_LUMENS_THRESHOLD, window, cx);
+                                    cx.notify();
+                                });
+                            })),
+                    ),
             )
-            .child(format!("Threshold: {}", self.lumens_threshold))
+            .text_color(cx.theme().muted_foreground)
+            .child(format!("{lumens_threshold}"))
     }
 
-    fn seconds_slider(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn seconds_slider(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let seconds_threshold = self.seconds_threshold.read(cx);
+
         div()
-            .child(Slider::new(&self.seconds_slider_state))
-            .child(format!("Seconds: {}", self.seconds_threshold))
+            .child("Delay time:")
+            .child(
+                h_flex()
+                    .w_full()
+                    .gap_4()
+                    .child(
+                        Slider::new(&self.seconds_slider_state)
+                            .bg(cx.theme().accent)
+                            .cursor_pointer(),
+                    )
+                    .child(
+                        Button::new("reset_seconds")
+                            .label("Reset")
+                            .primary()
+                            .cursor_pointer()
+                            .on_click(cx.listener(|view, _, window, cx| {
+                                view.seconds_threshold.update(cx, |this, cx| {
+                                    *this = Self::DEFAULT_SECONDS_THRESHOLD;
+                                    cx.notify();
+                                });
+                                view.seconds_slider_state.update(cx, |this, cx| {
+                                    this.set_value(Self::DEFAULT_SECONDS_THRESHOLD, window, cx);
+                                });
+                            })),
+                    ),
+            )
+            .text_color(cx.theme().muted_foreground)
+            .child(format!("{seconds_threshold}s",))
+    }
+
+    fn explainer_text(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let lumen_threshold = self.lumens_threshold.read(cx);
+        let seconds_threshold = self.seconds_threshold.read(cx);
+
+        div()
+        .w_full()
+        .justify_center()
+        .text_align(TextAlign::Center)
+        .child(format!("When the ambient light drops below {lumen_threshold} lumens for at least {seconds_threshold} seconds, the theme will switch to dark mode."))
     }
 
     fn body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        v_flex()
+        div()
             .size_full()
+            .p_4()
             .justify_center()
             .items_center()
-            .gap_2()
+            .content_center()
+            .gap_4()
             .child(self.enable_theme_toggle(cx))
             .child(self.lumens_slider(cx))
             .child(self.seconds_slider(cx))
+            .child(self.explainer_text(cx))
     }
 }
 
@@ -108,9 +178,21 @@ impl Render for App {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .size_full()
-            .child(TitleBar::new())
+            .child(
+                TitleBar::new().child(
+                    h_flex()
+                        .w_full()
+                        .justify_center()
+                        .child("Multiplatform Ambient Light Sensor Theme Switcher"),
+                ),
+            )
             .child(self.body(cx))
     }
+}
+
+fn override_colours(cx: &mut gpui::App) {
+    let theme = Theme::global_mut(cx);
+    theme.accent = theme.blue;
 }
 
 fn main() {
@@ -121,10 +203,11 @@ fn main() {
 
             Theme::sync_system_appearance(None, cx);
             Theme::sync_scrollbar_appearance(cx);
+            override_colours(cx);
 
             let window_options = WindowOptions {
                 titlebar: Some(TitleBar::title_bar_options()),
-                window_bounds: Some(WindowBounds::centered(size(px(600.), px(600.)), cx)),
+                window_bounds: Some(WindowBounds::centered(size(px(600.), px(300.)), cx)),
                 window_decorations: Some(WindowDecorations::Client),
                 is_resizable: false,
                 is_movable: false,
@@ -137,40 +220,16 @@ fn main() {
                     window.activate_window();
                     window.set_window_title("Multiplatform Ambient Light Sensor Theme Switcher");
 
-                    // cx.new(|cx| {
-                    //     cx.background_spawn(async move |cx| {
-                    //         let system_theme =
-                    //             SystemTheme::new().expect("Failed to create system theme");
-                    //         let mut stream = system_theme.subscribe();
-
-                    //         for update in stream.next().await {
-                    //             use system_theme:ThemeScheme;
-
-                    //             match system_theme.get_scheme().ok() {
-
-                    //               Some(ThemeScheme::Dark) => {
-
-                    //               }
-                    //               Some(ThemeScheme::Light) => {}
-                    //               _ => {}
-                    //             };
-                    //         }
-                    //         }.into())
-                    // });
+                    window
+                        .observe_window_appearance(|window, cx| {
+                            Theme::sync_system_appearance(Some(window), cx);
+                            Theme::sync_scrollbar_appearance(cx);
+                            override_colours(cx);
+                            cx.refresh_windows();
+                        })
+                        .detach();
 
                     let view = cx.new(App::new);
-
-                    println!("Theme: {:?}", window.appearance());
-
-                    Theme::sync_system_appearance(Some(window), cx);
-                    Theme::sync_scrollbar_appearance(cx);
-
-                    _ = window.observe_window_appearance(|window, cx| {
-                        println!("Theme changed: {:?}", window.appearance());
-
-                        Theme::sync_system_appearance(Some(window), cx);
-                        Theme::sync_scrollbar_appearance(cx);
-                    });
 
                     cx.new(|cx| Root::new(view, window, cx))
                 })
