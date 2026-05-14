@@ -7,6 +7,7 @@ use gpui_component::{
 	button::{Button, ButtonVariants},
 	checkbox::Checkbox,
 	h_flex,
+	separator::Separator,
 	slider::{Slider, SliderEvent, SliderState},
 	v_flex,
 };
@@ -74,7 +75,7 @@ impl App {
 		};
 	}
 
-	fn enable_theme_toggle(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+	fn toggles(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
 		let enable_theme_switching = self.enable_theme_switching.read(cx);
 		let enable_autostart = self.enable_autostart.read(cx);
 
@@ -82,6 +83,7 @@ impl App {
 			.gap_2()
 			.child(
 				Checkbox::new("autostart")
+					.cursor_pointer()
 					.label("Start at login")
 					.checked(*enable_autostart)
 					.on_click(cx.listener(|view, checked, _, cx| {
@@ -93,6 +95,7 @@ impl App {
 			)
 			.child(
 				Checkbox::new("enable_theme_switching")
+					.cursor_pointer()
 					.label("Enable theme switching")
 					.checked(*enable_theme_switching)
 					.on_click(cx.listener(|view, checked, _, cx| {
@@ -196,7 +199,8 @@ impl App {
 			.items_center()
 			.content_center()
 			.gap_4()
-			.child(self.enable_theme_toggle(cx))
+			.child(self.toggles(cx))
+			.child(Separator::horizontal().w_full())
 			.child(self.lumens_slider(cx))
 			.child(self.seconds_slider(cx))
 			.child(self.explainer_text(cx));
