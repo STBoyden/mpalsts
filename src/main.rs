@@ -13,11 +13,11 @@ use gpui_component::{
 
 pub struct App {
 	enable_theme_switching: Entity<bool>,
-	enable_autostart: Entity<bool>,
-	lumens_slider_state: Entity<SliderState>,
-	lumens_threshold: Entity<f32>,
-	seconds_slider_state: Entity<SliderState>,
-	seconds_threshold: Entity<f32>,
+	enable_autostart:       Entity<bool>,
+	lumens_slider_state:    Entity<SliderState>,
+	lumens_threshold:       Entity<f32>,
+	seconds_slider_state:   Entity<SliderState>,
+	seconds_threshold:      Entity<f32>,
 }
 
 impl App {
