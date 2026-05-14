@@ -1,6 +1,13 @@
 #![allow(clippy::needless_return)]
 #![warn(clippy::implicit_return)]
 
+use std::{
+	fs::{self, File},
+	io::BufWriter,
+};
+
+use anyhow::anyhow;
+use directories::ProjectDirs;
 use gpui::{prelude::*, *};
 use gpui_component::{
 	ActiveTheme, Root, Theme, TitleBar,
@@ -11,73 +18,129 @@ use gpui_component::{
 	slider::{Slider, SliderEvent, SliderState},
 	v_flex,
 };
+use log::{error, trace};
+use ron::ser::PrettyConfig;
+use serde::{Deserialize, Serialize};
 
-pub struct App {
-	enable_theme_switching: Entity<bool>,
-	enable_autostart:       Entity<bool>,
-	lumens_slider_state:    Entity<SliderState>,
-	lumens_threshold:       Entity<f32>,
-	seconds_slider_state:   Entity<SliderState>,
-	seconds_threshold:      Entity<f32>,
+const MIN_LUMENS_THRESHOLD: f32 = 10.;
+const DEFAULT_LUMENS_THRESHOLD: f32 = 100.;
+const MAX_LUMENS_THRESHOLD: f32 = 2000.;
+
+const MIN_SECONDS_THRESHOLD: f32 = 10.;
+const DEFAULT_SECONDS_THRESHOLD: f32 = 30.;
+const MAX_SECONDS_THRESHOLD: f32 = 120.;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AppState {
+	enable_theme_switching: bool,
+	enable_autostart:       bool,
+	lumens_threshold:       f32,
+	seconds_threshold:      f32,
+}
+
+impl Default for AppState {
+	fn default() -> Self {
+		return Self {
+			enable_theme_switching: false,
+			enable_autostart:       false,
+			lumens_threshold:       DEFAULT_LUMENS_THRESHOLD,
+			seconds_threshold:      DEFAULT_SECONDS_THRESHOLD,
+		};
+	}
+}
+
+impl AppState {
+	pub(crate) fn read_config() -> anyhow::Result<Self> {
+		let project_dir = ProjectDirs::from("com", "stboyden", "mpalsts")
+			.ok_or(anyhow!("failed to resolve project directory"))?;
+
+		let config_dir = project_dir.config_dir();
+
+		fs::create_dir_all(config_dir)?;
+
+		let config_ron = config_dir.join("config.ron");
+
+		let exists = fs::exists(&config_ron);
+		if exists.is_err() || !exists? {
+			return Ok(Self::default());
+		}
+
+		let config_ron = File::open(&config_ron)?;
+		let config: AppState = ron::de::from_reader(config_ron)?;
+
+		return Ok(config);
+	}
+
+	pub(crate) fn save_config(&self) -> anyhow::Result<()> {
+		let project_dir = ProjectDirs::from("com", "stboyden", "mpalsts")
+			.ok_or(anyhow!("failed to resolve project directory"))?;
+
+		let config_dir = project_dir.config_dir();
+		fs::create_dir_all(config_dir)?;
+
+		let config_ron = config_dir.join("config.ron");
+		let config_ron = BufWriter::new(File::create(&config_ron)?);
+		ron::Options::default().to_io_writer_pretty(config_ron, self, PrettyConfig::new())?;
+
+		return Ok(());
+	}
+}
+
+#[derive(Debug)]
+struct App {
+	state:                Entity<AppState>,
+	lumens_slider_state:  Entity<SliderState>,
+	seconds_slider_state: Entity<SliderState>,
 }
 
 impl App {
-	const DEFAULT_LUMENS_THRESHOLD: f32 = 100.0;
-	const DEFAULT_SECONDS_THRESHOLD: f32 = 30.0;
-
-	fn new(cx: &mut Context<Self>) -> Self {
-		let lumens_slider_state = cx.new(|_| {
+	fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
+		let lumens_slider_state = cx.new(|cx| {
 			return SliderState::new()
-				.default_value(Self::DEFAULT_LUMENS_THRESHOLD)
-				.min(10.)
-				.max(2000.);
+				.default_value(state.read(cx).lumens_threshold)
+				.min(MIN_LUMENS_THRESHOLD)
+				.max(MAX_LUMENS_THRESHOLD);
 		});
 
 		cx.subscribe(&lumens_slider_state, |this, _, event: &SliderEvent, cx| {
-			match event {
-				SliderEvent::Change(value) | SliderEvent::Release(value) => {
-					this.lumens_threshold.update(cx, |this, cx| {
-						*this = value.start();
-						cx.notify();
-					});
-				}
+			if let SliderEvent::Change(value) = event {
+				this.state.update(cx, |this, cx| {
+					this.lumens_threshold = value.start();
+					cx.notify();
+				});
 			};
 		})
 		.detach();
 
-		let seconds_slider_state = cx.new(|_| {
+		let seconds_slider_state = cx.new(|cx| {
 			return SliderState::new()
-				.default_value(Self::DEFAULT_SECONDS_THRESHOLD)
-				.min(10.)
-				.max(120.);
+				.default_value(state.read(cx).seconds_threshold)
+				.min(MIN_SECONDS_THRESHOLD)
+				.max(MAX_SECONDS_THRESHOLD);
 		});
 
-		cx.subscribe(
-			&seconds_slider_state,
-			|this, _, event: &SliderEvent, cx| match event {
-				SliderEvent::Change(value) | SliderEvent::Release(value) => {
-					this.seconds_threshold.update(cx, |this, cx| {
-						*this = value.start();
-						cx.notify();
-					});
-				}
-			},
-		)
+		cx.subscribe(&seconds_slider_state, |this, _, event: &SliderEvent, cx| {
+			if let SliderEvent::Change(value) = event {
+				this.state.update(cx, |this, cx| {
+					this.seconds_threshold = value.start();
+					cx.notify();
+				});
+			}
+		})
 		.detach();
 
 		return Self {
-			enable_theme_switching: cx.new(|_| return false),
-			enable_autostart: cx.new(|_| return false),
+			state,
 			lumens_slider_state,
-			lumens_threshold: cx.new(|_| return Self::DEFAULT_LUMENS_THRESHOLD),
 			seconds_slider_state,
-			seconds_threshold: cx.new(|_| return Self::DEFAULT_SECONDS_THRESHOLD),
 		};
 	}
 
 	fn toggles(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let enable_theme_switching = self.enable_theme_switching.read(cx);
-		let enable_autostart = self.enable_autostart.read(cx);
+		let Self { state, .. } = self;
+
+		let enable_theme_switching = state.read(cx).enable_theme_switching;
+		let enable_autostart = state.read(cx).enable_autostart;
 
 		return v_flex()
 			.gap_2()
@@ -85,10 +148,10 @@ impl App {
 				Checkbox::new("autostart")
 					.cursor_pointer()
 					.label("Start at login")
-					.checked(*enable_autostart)
-					.on_click(cx.listener(|view, checked, _, cx| {
-						view.enable_autostart.update(cx, |this, cx| {
-							*this = *checked;
+					.checked(enable_autostart)
+					.on_click(cx.listener(|App { state, .. }, checked, _, cx| {
+						state.update(cx, |this, cx| {
+							this.enable_autostart = *checked;
 							cx.notify();
 						})
 					})),
@@ -97,18 +160,20 @@ impl App {
 				Checkbox::new("enable_theme_switching")
 					.cursor_pointer()
 					.label("Enable theme switching")
-					.checked(*enable_theme_switching)
-					.on_click(cx.listener(|view, checked, _, cx| {
-						view.enable_theme_switching.update(cx, |this, cx| {
-							*this = *checked;
+					.checked(enable_theme_switching)
+					.on_click(cx.listener(|App { state, .. }, checked, _, cx| {
+						state.update(cx, |this, cx| {
+							this.enable_theme_switching = *checked;
 							cx.notify();
-						})
+						});
 					})),
 			);
 	}
 
 	fn lumens_slider(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let lumens_threshold = self.lumens_threshold.read(cx);
+		let Self { state, .. } = self;
+
+		let lumens_threshold = state.read(cx).lumens_threshold;
 
 		return div()
 			.w_full()
@@ -128,16 +193,26 @@ impl App {
 							.label("Reset")
 							.primary()
 							.cursor_pointer()
-							.on_click(cx.listener(|view, _, window, cx| {
-								view.lumens_threshold.update(cx, |this, cx| {
-									*this = Self::DEFAULT_LUMENS_THRESHOLD;
-									cx.notify();
-								});
-								view.lumens_slider_state.update(cx, |this, cx| {
-									this.set_value(Self::DEFAULT_LUMENS_THRESHOLD, window, cx);
-									cx.notify();
-								});
-							})),
+							.on_click(cx.listener(
+								|App {
+								   state,
+								   lumens_slider_state,
+								   ..
+								 },
+								 _,
+								 window,
+								 cx| {
+									state.update(cx, |this, cx| {
+										this.lumens_threshold = DEFAULT_LUMENS_THRESHOLD;
+										cx.notify();
+									});
+
+									lumens_slider_state.update(cx, |this, cx| {
+										this.set_value(DEFAULT_LUMENS_THRESHOLD, window, cx);
+										cx.notify();
+									});
+								},
+							)),
 					),
 			)
 			.text_color(cx.theme().muted_foreground)
@@ -145,7 +220,9 @@ impl App {
 	}
 
 	fn seconds_slider(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let seconds_threshold = self.seconds_threshold.read(cx);
+		let Self { state, .. } = self;
+
+		let seconds_threshold = state.read(cx).seconds_threshold;
 
 		return div()
 			.w_full()
@@ -165,15 +242,25 @@ impl App {
 							.label("Reset")
 							.primary()
 							.cursor_pointer()
-							.on_click(cx.listener(|view, _, window, cx| {
-								view.seconds_threshold.update(cx, |this, cx| {
-									*this = Self::DEFAULT_SECONDS_THRESHOLD;
-									cx.notify();
-								});
-								view.seconds_slider_state.update(cx, |this, cx| {
-									this.set_value(Self::DEFAULT_SECONDS_THRESHOLD, window, cx);
-								});
-							})),
+							.on_click(cx.listener(
+								|App {
+								   state,
+								   seconds_slider_state,
+								   ..
+								 },
+								 _,
+								 window,
+								 cx| {
+									state.update(cx, |this, cx| {
+										this.seconds_threshold = DEFAULT_SECONDS_THRESHOLD;
+										cx.notify();
+									});
+
+									seconds_slider_state.update(cx, |this, cx| {
+										this.set_value(DEFAULT_SECONDS_THRESHOLD, window, cx);
+									});
+								},
+							)),
 					),
 			)
 			.text_color(cx.theme().muted_foreground)
@@ -181,8 +268,10 @@ impl App {
 	}
 
 	fn explainer_text(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let lumen_threshold = self.lumens_threshold.read(cx);
-		let seconds_threshold = self.seconds_threshold.read(cx);
+		let Self { state, .. } = self;
+
+		let lumen_threshold = state.read(cx).lumens_threshold;
+		let seconds_threshold = state.read(cx).seconds_threshold;
 
 		return div()
 			.w_full()
@@ -228,15 +317,23 @@ fn override_colours(cx: &mut gpui::App) {
 	theme.accent = theme.blue;
 }
 
+fn update_theme(cx: &mut gpui::App, window: Option<&mut Window>) {
+	Theme::sync_system_appearance(window, cx);
+	Theme::sync_scrollbar_appearance(cx);
+	override_colours(cx);
+}
+
 fn main() {
+	env_logger::init();
+
 	gpui_platform::application()
 		.with_assets(gpui_component_assets::Assets)
 		.run(move |cx| {
+			trace!("Initialising GPUI component assets...");
 			gpui_component::init(cx);
 
-			Theme::sync_system_appearance(None, cx);
-			Theme::sync_scrollbar_appearance(cx);
-			override_colours(cx);
+			update_theme(cx, None);
+			trace!("Initialising window theme, {:#?}", cx.window_appearance());
 
 			let window_options = WindowOptions {
 				titlebar: Some(TitleBar::title_bar_options()),
@@ -248,6 +345,10 @@ fn main() {
 				..Default::default()
 			};
 
+			let state = cx.new(|_| {
+				return AppState::read_config().unwrap_or_default();
+			});
+
 			cx.spawn(async move |cx| {
 				return cx
 					.open_window(window_options, |window, cx| {
@@ -256,14 +357,21 @@ fn main() {
 
 						window
 							.observe_window_appearance(|window, cx| {
-								Theme::sync_system_appearance(Some(window), cx);
-								Theme::sync_scrollbar_appearance(cx);
-								override_colours(cx);
+								trace!("Window appearance changed, {:#?}", window.appearance());
+
+								update_theme(cx, Some(window));
 								cx.refresh_windows();
 							})
 							.detach();
 
-						let view = cx.new(App::new);
+						cx.observe(&state, |view, cx| {
+							if let Err(e) = view.read(cx).save_config() {
+								error!("Failed to save config: {e}");
+							}
+						})
+						.detach();
+
+						let view = cx.new(|cx| return App::new(state, cx));
 
 						return cx.new(|cx| return Root::new(view, window, cx));
 					})

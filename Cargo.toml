@@ -10,3 +10,9 @@ gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
 system-theme = "0.3.0"
 futures = "0.3.32"
+log = "0.4.29"
+env_logger = "0.11.10"
+serde = { version = "1.0.228", features = ["derive"] }
+ron = "0.12.1"
+anyhow = "1.0.102"
+directories = "6.0.0"
