@@ -1,6 +1,3 @@
-#![allow(clippy::needless_return)]
-#![warn(clippy::implicit_return)]
-
 use std::{
 	fs::{self, File},
 	io::BufWriter,

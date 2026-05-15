@@ -1,18 +1,11 @@
-[package]
-name = "mpalsts"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+members = ["crates/gui", "crates/als"]
 
-[dependencies]
+[workspace.dependencies]
 gpui = { git = "https://github.com/zed-industries/zed" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "wayland", "x11"] }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
-system-theme = "0.3.0"
-futures = "0.3.32"
 log = "0.4.29"
 env_logger = "0.11.10"
-serde = { version = "1.0.228", features = ["derive"] }
-ron = "0.12.1"
-anyhow = "1.0.102"
-directories = "6.0.0"
