@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 
 use objc2::rc::Retained;
 use objc2_io_kit::{IOHIDEventStruct, IOHIDServiceClient};
@@ -36,17 +36,17 @@ pub enum MacOSALSError {
 type Result<T> = std::result::Result<T, MacOSALSError>;
 
 pub struct MacOSSensorReader {
-	client: Option<Retained<IOHIDServiceClient>>,
+	client:           Option<Retained<IOHIDServiceClient>>,
 	#[cfg(test)]
-	_test: i32,
+	pub(crate) _test: i32,
 }
 
 impl MacOSSensorReader {
 	pub fn new() -> RefCell<Self> {
 		return RefCell::new(Self {
-			client: None,
+			client:             None,
 			#[cfg(test)]
-			_test: 0,
+			_test:              0,
 		});
 	}
 
