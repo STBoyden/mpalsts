@@ -30,18 +30,18 @@ const MAX_SECONDS_THRESHOLD: f32 = 120.;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppState {
 	enable_theme_switching: bool,
-	enable_autostart:       bool,
-	lumens_threshold:       f32,
-	seconds_threshold:      f32,
+	enable_autostart: bool,
+	lumens_threshold: f32,
+	seconds_threshold: f32,
 }
 
 impl Default for AppState {
 	fn default() -> Self {
 		return Self {
 			enable_theme_switching: false,
-			enable_autostart:       false,
-			lumens_threshold:       DEFAULT_LUMENS_THRESHOLD,
-			seconds_threshold:      DEFAULT_SECONDS_THRESHOLD,
+			enable_autostart: false,
+			lumens_threshold: DEFAULT_LUMENS_THRESHOLD,
+			seconds_threshold: DEFAULT_SECONDS_THRESHOLD,
 		};
 	}
 }
@@ -85,8 +85,8 @@ impl AppState {
 
 #[derive(Debug)]
 struct App {
-	state:                Entity<AppState>,
-	lumens_slider_state:  Entity<SliderState>,
+	state: Entity<AppState>,
+	lumens_slider_state: Entity<SliderState>,
 	seconds_slider_state: Entity<SliderState>,
 }
 

@@ -37,11 +37,17 @@ type Result<T> = std::result::Result<T, MacOSALSError>;
 
 pub struct MacOSSensorReader {
 	client: Option<Retained<IOHIDServiceClient>>,
+	#[cfg(test)]
+	_test: i32,
 }
 
 impl MacOSSensorReader {
 	pub fn new() -> RefCell<Self> {
-		return RefCell::new(Self { client: None });
+		return RefCell::new(Self {
+			client: None,
+			#[cfg(test)]
+			_test: 0,
+		});
 	}
 
 	fn copy_hid_event(&mut self) -> Option<Box<IOHIDEventStruct>> {
@@ -89,6 +95,12 @@ impl MacOSSensorReader {
 
 		return Ok(0.);
 	}
+
+	#[cfg(test)]
+	pub(crate) fn test_mutable(&mut self) -> i32 {
+		self._test += 1;
+		return self._test;
+	}
 }
 
 impl LightSensor for RefCell<MacOSSensorReader> {
@@ -98,5 +110,10 @@ impl LightSensor for RefCell<MacOSSensorReader> {
 
 	fn has_sensor(&self) -> bool {
 		return self.borrow_mut().can_get_event();
+	}
+
+	fn mutate_concrete(&self, mutate: impl FnOnce(RefMut<'_, MacOSSensorReader>)) {
+		let borrow = self.borrow_mut();
+		mutate(borrow);
 	}
 }

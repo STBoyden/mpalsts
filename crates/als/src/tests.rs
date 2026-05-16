@@ -62,3 +62,29 @@ fn test_poll_read() {
 		);
 	})
 }
+
+#[test]
+fn test_mutate() {
+	smol::block_on(async {
+		scaffold();
+
+		if !is_sensor_available() {
+			log::info!("No sensor available for this device");
+			return;
+		}
+
+		let sensor = get_platform_reader()
+			.await
+			.expect("Device should have a sensor");
+
+		sensor.mutate_concrete(|mut concrete| {
+			let before_mutate = concrete._test;
+			let after_mutate = concrete.test_mutable();
+
+			assert_ne!(
+				before_mutate, after_mutate,
+				"Sensor test mutable should change the _test value"
+			);
+		});
+	});
+}

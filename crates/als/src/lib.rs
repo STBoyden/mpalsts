@@ -1,13 +1,13 @@
 #![allow(clippy::transmute_ptr_to_ref, clippy::useless_transmute)]
 
 mod error;
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 mod tests;
 
-// #[cfg(target_os = "macos")]
-// embed_entitlements!(r#"../resources/als.entitlement"#);
-
+use std::cell::RefMut;
 use std::time::Duration;
 
 use async_stream::stream;
@@ -15,12 +15,16 @@ use futures::Stream;
 use futures_time::task::sleep;
 
 use crate::error::ALSError;
+#[cfg(target_os = "linux")]
+use crate::linux::LinuxSensorReader;
 #[cfg(target_os = "macos")]
 use crate::macos::MacOSSensorReader;
 
 pub(crate) type Result<T> = std::result::Result<T, ALSError>;
+
 pub type SensorOutput = f64;
 pub trait LightSensor {
+	/// Read the sensor and return the current light level.
 	async fn read(&mut self) -> Result<SensorOutput>;
 
 	/// Returns an infinite stream that polls the sensor at the specified duration.
@@ -33,13 +37,24 @@ pub trait LightSensor {
 		};
 	}
 
+	/// Returns whether the platform has a sensor available.
 	fn has_sensor(&self) -> bool;
+
+	/// Mutate the concrete sensor reader.
+	#[cfg(target_os = "linux")]
+	fn mutate_concrete(&self, mutate: impl FnOnce(RefMut<'_, linux::LinuxSensorReader>));
+
+	/// Mutate the concrete sensor reader.
+	#[cfg(target_os = "macos")]
+	fn mutate_concrete(&self, mutate: impl FnOnce(RefMut<'_, macos::MacOSSensorReader>));
 }
 
 /// Returns whether the platform has a sensor available.
 pub fn is_sensor_available() -> bool {
 	#[cfg(target_os = "macos")]
 	return macos::MacOSSensorReader::new().has_sensor();
+	#[cfg(target_os = "linux")]
+	return linux::LinuxSensorReader::new().has_sensor();
 }
 
 /// Returns this platform's sensor reader, if one is available.
@@ -49,7 +64,11 @@ pub fn is_sensor_available() -> bool {
 /// - (MacOS only) [`MacOSALSError`]: When the sensor reader is not available. This can occur if
 ///   your MacOS-based system does not have a sensor. Most modern MacBooks, and iMacs will have a
 ///   sensor.
+/// - (Linux only) [`LinuxALSError`]: When the sensor reader is not available. This can occur if
+///   your Linux-based system does not have a sensor.
 pub async fn get_platform_reader() -> Result<impl LightSensor> {
 	#[cfg(target_os = "macos")]
 	return Ok(MacOSSensorReader::new());
+	#[cfg(target_os = "linux")]
+	return Ok(LinuxSensorReader::new());
 }

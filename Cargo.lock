@@ -84,6 +84,7 @@ dependencies = [
  "env_logger",
  "futures",
  "futures-time",
+ "glob",
  "log",
  "objc2",
  "objc2-core-foundation",
