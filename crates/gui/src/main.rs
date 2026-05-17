@@ -1,12 +1,15 @@
 use std::{
+	env,
 	fs::{self, File},
 	io::BufWriter,
 	rc::Rc,
+	sync::Arc,
 	time::{Duration, Instant},
 };
 
 use als::{LightSensor, SensorOutput};
 use anyhow::anyhow;
+use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use gpui::{prelude::*, *};
@@ -104,6 +107,7 @@ struct App {
 	seconds_slider_state:  Entity<SliderState>,
 	last_threshold_update: Entity<Option<Instant>>,
 	theme_mode:            Entity<ThemeMode>,
+	auto_launcher:         Arc<AutoLaunch>,
 }
 
 impl App {
@@ -267,6 +271,23 @@ impl App {
 		})
 		.detach();
 
+		let auto_launcher = Arc::new(
+			AutoLaunchBuilder::new()
+				.set_app_name("MPALSTS")
+				.set_app_path(
+					env::current_exe()
+						.expect("could not get path of current executable")
+						.as_os_str()
+						.to_str()
+						.expect("could not get path of current executable"),
+				)
+				.set_macos_launch_mode(auto_launch::MacOSLaunchMode::SMAppService)
+				.set_linux_launch_mode(auto_launch::LinuxLaunchMode::XdgAutostart)
+				.set_windows_enable_mode(auto_launch::WindowsEnableMode::CurrentUser)
+				.build()
+				.expect("could not build auto launcher"),
+		);
+
 		return Self {
 			persistent_state,
 			_light_sensor,
@@ -276,6 +297,7 @@ impl App {
 			seconds_slider_state,
 			last_threshold_update,
 			theme_mode,
+			auto_launcher,
 		};
 	}
 
@@ -298,6 +320,7 @@ impl App {
 					.on_click(cx.listener(
 						|App {
 						   persistent_state: state,
+						   auto_launcher,
 						   ..
 						 },
 						 checked,
@@ -306,7 +329,18 @@ impl App {
 							state.update(cx, |this, cx| {
 								this.enable_autostart = *checked;
 								cx.notify();
-							})
+							});
+
+							let auto_launcher = auto_launcher.clone();
+							let checked = *checked;
+
+							_ = cx.spawn(async move |_, _| {
+								if checked && let Err(error) = auto_launcher.enable() {
+									error!("could not enable auto launcher: {error}");
+								} else if let Err(error) = auto_launcher.disable() {
+									error!("could not disable auto launcher: {error}");
+								}
+							});
 						},
 					)),
 			)
