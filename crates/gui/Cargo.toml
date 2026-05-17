@@ -7,6 +7,10 @@ edition = "2024"
 needless_return = "allow"
 implicit_return = "warn"
 
+[[bin]]
+name = "mpalsts-gui"
+path = "src/main.rs"
+
 [dependencies]
 als = { path = "../als" }
 theme-switch = { path = "../theme-switch" }
