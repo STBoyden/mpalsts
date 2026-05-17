@@ -1,11 +1,49 @@
+[package]
+name = "mpalsts"
+version = "0.1.0"
+authors = ["Samuel Boyden <sam@stboyden.com>"]
+edition = "2024"
+
 [workspace]
 resolver = "3"
-members = ["crates/gui", "crates/als", "crates/theme-switch"]
+members = ["crates/als", "crates/theme-switch"]
+
+[lints.clippy]
+needless_return = "allow"
+implicit_return = "warn"
+
+[[bin]]
+name = "mpalsts"
+path = "src/main.rs"
+
+[dependencies]
+als.workspace = true
+anyhow.workspace = true
+auto-launch.workspace = true
+directories.workspace = true
+env_logger.workspace = true
+futures.workspace = true
+gpui-component-assets.workspace = true
+gpui-component.workspace = true
+gpui.workspace = true
+gpui_platform.workspace = true
+log.workspace = true
+ron.workspace = true
+serde.workspace = true
+theme-switch.workspace = true
 
 [workspace.dependencies]
+als.path = "./crates/als"
+theme-switch.path = "./crates/theme-switch"
+anyhow = "1.0.102"
+auto-launch = "0.6.0"
+directories = "6.0.0"
+env_logger = "0.11.10"
+futures = "0.3.32"
 gpui = { git = "https://github.com/zed-industries/zed" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "wayland", "x11"] }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "wayland", "x11"] }
 log = "0.4.29"
-env_logger = "0.11.10"
+ron = "0.12.1"
+serde = { version = "1.0.228", features = ["derive"] }
