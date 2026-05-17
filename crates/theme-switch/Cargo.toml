@@ -1,0 +1,11 @@
+[package]
+name = "theme-switch"
+version = "0.1.0"
+edition = "2024"
+
+[lints.clippy]
+needless_return = "allow"
+implicit_return = "warn"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+osakit = { version = "0.3", features = ["full"] }

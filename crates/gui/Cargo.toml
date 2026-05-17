@@ -9,6 +9,8 @@ implicit_return = "warn"
 
 [dependencies]
 als = { path = "../als" }
+theme-switch = { path = "../theme-switch" }
+
 anyhow = "1.0.102"
 directories = "6.0.0"
 env_logger = { workspace = true }

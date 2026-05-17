@@ -17,11 +17,12 @@ use gpui_component::{
 	h_flex,
 	separator::Separator,
 	slider::{Slider, SliderEvent, SliderState},
-	theme, v_flex,
+	v_flex,
 };
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
+use theme_switch::ThemeSwitcher;
 
 const MIN_LUMENS_THRESHOLD: f32 = 10.;
 const DEFAULT_LUMENS_THRESHOLD: f32 = 100.;
@@ -257,9 +258,11 @@ impl App {
 		.detach();
 
 		cx.observe(&theme_mode, |_, theme_mode, cx| {
+			let theme_switcher = theme_switch::get();
+
 			match theme_mode.read(cx) {
-				ThemeMode::Dark => debug!("Will turn into dark mode"),
-				ThemeMode::Light => debug!("Will turn into light mode"),
+				ThemeMode::Dark => theme_switcher.to_dark(),
+				ThemeMode::Light => theme_switcher.to_light(),
 			};
 		})
 		.detach();
