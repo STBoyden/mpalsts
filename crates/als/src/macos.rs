@@ -1,3 +1,8 @@
+//! MacOS implementation of the ambient light sensor reader.
+//!
+//! Main functionality has been ported from
+//! [DarkModeBuddy's](https://github.com/insidegui/DarkModeBuddy) Objective-C code, which is
+//! liscensed under BSD 2-Clause.
 use std::cell::{RefCell, RefMut};
 
 use objc2::rc::Retained;
