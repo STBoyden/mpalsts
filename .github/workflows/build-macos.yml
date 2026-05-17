@@ -50,5 +50,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mpalsts-macos-app
-          path: target/release/bundle/osx/MPALSTS.app
+          path: target/release/bundle/osx/MPALSTS.dmg
           if-no-files-found: error

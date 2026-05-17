@@ -4,6 +4,9 @@
 > If you're viewing this on GitHub, please note that this is a mirror for CI/CD
 > purposes only. Please make sure to refer all issues and pull requests to the
 > [main repository on Codeberg](https://codeberg.org/STBoyden/mpalsts).
+>
+> For macOS builds, please see
+> [here](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml).
 
 ![Window Screenshot](docs/assets/window.png)
 
