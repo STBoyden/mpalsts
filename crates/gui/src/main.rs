@@ -1,10 +1,14 @@
 use std::{
 	fs::{self, File},
 	io::BufWriter,
+	rc::Rc,
+	time::{Duration, Instant},
 };
 
+use als::{LightSensor, SensorOutput};
 use anyhow::anyhow;
 use directories::ProjectDirs;
+use futures::StreamExt;
 use gpui::{prelude::*, *};
 use gpui_component::{
 	ActiveTheme, Root, Theme, TitleBar,
@@ -13,9 +17,9 @@ use gpui_component::{
 	h_flex,
 	separator::Separator,
 	slider::{Slider, SliderEvent, SliderState},
-	v_flex,
+	theme, v_flex,
 };
-use log::{error, trace};
+use log::{debug, error, trace, warn};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
@@ -30,18 +34,18 @@ const MAX_SECONDS_THRESHOLD: f32 = 120.;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppState {
 	enable_theme_switching: bool,
-	enable_autostart: bool,
-	lumens_threshold: f32,
-	seconds_threshold: f32,
+	enable_autostart:       bool,
+	lumens_threshold:       f32,
+	seconds_threshold:      f32,
 }
 
 impl Default for AppState {
 	fn default() -> Self {
 		return Self {
 			enable_theme_switching: false,
-			enable_autostart: false,
-			lumens_threshold: DEFAULT_LUMENS_THRESHOLD,
-			seconds_threshold: DEFAULT_SECONDS_THRESHOLD,
+			enable_autostart:       false,
+			lumens_threshold:       DEFAULT_LUMENS_THRESHOLD,
+			seconds_threshold:      DEFAULT_SECONDS_THRESHOLD,
 		};
 	}
 }
@@ -83,25 +87,36 @@ impl AppState {
 	}
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ThemeMode {
+	Light,
+	Dark,
+}
+
 #[derive(Debug)]
 struct App {
-	state: Entity<AppState>,
-	lumens_slider_state: Entity<SliderState>,
-	seconds_slider_state: Entity<SliderState>,
+	persistent_state:      Entity<AppState>,
+	_light_sensor:         Entity<Rc<als::ConcreteSensor>>,
+	current_lumens:        Entity<SensorOutput>,
+	_current_lumens_task:  Task<()>,
+	lumens_slider_state:   Entity<SliderState>,
+	seconds_slider_state:  Entity<SliderState>,
+	last_threshold_update: Entity<Option<Instant>>,
+	theme_mode:            Entity<ThemeMode>,
 }
 
 impl App {
-	fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
+	fn new(persistent_state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
 		let lumens_slider_state = cx.new(|cx| {
 			return SliderState::new()
-				.default_value(state.read(cx).lumens_threshold)
+				.default_value(persistent_state.read(cx).lumens_threshold)
 				.min(MIN_LUMENS_THRESHOLD)
 				.max(MAX_LUMENS_THRESHOLD);
 		});
 
 		cx.subscribe(&lumens_slider_state, |this, _, event: &SliderEvent, cx| {
 			if let SliderEvent::Change(value) = event {
-				this.state.update(cx, |this, cx| {
+				this.persistent_state.update(cx, |this, cx| {
 					this.lumens_threshold = value.start();
 					cx.notify();
 				});
@@ -111,14 +126,14 @@ impl App {
 
 		let seconds_slider_state = cx.new(|cx| {
 			return SliderState::new()
-				.default_value(state.read(cx).seconds_threshold)
+				.default_value(persistent_state.read(cx).seconds_threshold)
 				.min(MIN_SECONDS_THRESHOLD)
 				.max(MAX_SECONDS_THRESHOLD);
 		});
 
 		cx.subscribe(&seconds_slider_state, |this, _, event: &SliderEvent, cx| {
 			if let SliderEvent::Change(value) = event {
-				this.state.update(cx, |this, cx| {
+				this.persistent_state.update(cx, |this, cx| {
 					this.seconds_threshold = value.start();
 					cx.notify();
 				});
@@ -126,15 +141,146 @@ impl App {
 		})
 		.detach();
 
+		let light_sensor_rc = Rc::new(als::get_platform_reader());
+
+		let _light_sensor = cx.new(|_| return light_sensor_rc.clone());
+		let current_lumens = cx.new(|_| return SensorOutput::default());
+
+		let local_clone = light_sensor_rc.clone();
+
+		// Observe sensor stream output and update state.
+		let _current_lumens_task = cx.spawn(async move |view, cx| {
+			let mut stream = Box::pin(local_clone.stream(Duration::from_secs(1)));
+			while let Some(Ok(output)) = stream.next().await {
+				if let Err(error) = view.update(cx, |this, cx| {
+					this.current_lumens.update(cx, |this, cx| {
+						*this = output;
+						cx.notify();
+					});
+				}) {
+					warn!("Failed to update lumens: {error}");
+				}
+			}
+
+			return;
+		});
+
+		let last_threshold_update = cx.new(|_| return None);
+		let theme_mode = cx.new(|cx| {
+			return if *current_lumens.read(cx) <= persistent_state.read(cx).lumens_threshold as f64 {
+				ThemeMode::Dark
+			} else {
+				ThemeMode::Light
+			};
+		});
+
+		// Observe lumen changes and update theme mode when time and lumen thresholds are exceeded.
+		cx.observe(&current_lumens, |this, current_lumens, cx| {
+      if !this.persistent_state.read(cx).enable_theme_switching {
+        return;
+      }
+
+			let lumens = *current_lumens.read(cx);
+			let lumens_threshold = this.persistent_state.read(cx).lumens_threshold as f64;
+			let seconds_threshold = this.persistent_state.read(cx).seconds_threshold;
+
+			let seconds_threshold_elapsed = this.last_threshold_update.read_with(cx, |this, _| {
+				let Some(last_update) = this else {
+					return Duration::ZERO;
+				};
+
+				return last_update.elapsed();
+			});
+
+			let has_seconds_threshold_elapsed =
+				seconds_threshold_elapsed >= Duration::from_secs_f32(seconds_threshold);
+
+			trace!(
+				"lumens: {lumens}, lumens_threshold: {lumens_threshold}, seconds_threshold: {seconds_threshold}, seconds_threshold_elapsed: {seconds_threshold_elapsed:?}, has_seconds_threshold_elapsed: {has_seconds_threshold_elapsed}"
+			);
+
+
+			match this.theme_mode.read(cx) {
+				ThemeMode::Dark if lumens > lumens_threshold && has_seconds_threshold_elapsed => {
+					this.theme_mode.update(cx, |mode, cx| {
+						*mode = ThemeMode::Light;
+						cx.notify();
+					});
+					this.last_threshold_update.update(cx, |update, cx| {
+						*update = None;
+						cx.notify();
+					});
+				}
+
+				ThemeMode::Light if lumens <= lumens_threshold && has_seconds_threshold_elapsed => {
+					this.theme_mode.update(cx, |mode, cx| {
+						*mode = ThemeMode::Dark;
+						cx.notify();
+					});
+					this.last_threshold_update.update(cx, |update, cx| {
+						*update = None;
+						cx.notify();
+					});
+				}
+
+				ThemeMode::Light if lumens <= lumens_threshold && this.last_threshold_update.read(cx).is_none() => {
+					this.last_threshold_update.update(cx, |update, cx| {
+						*update = Some(Instant::now());
+						cx.notify();
+					})
+				}
+
+				ThemeMode::Dark if lumens > lumens_threshold && this.last_threshold_update.read(cx).is_none() => {
+					this.last_threshold_update.update(cx, |update, cx| {
+						*update = Some(Instant::now());
+						cx.notify();
+					})
+				}
+
+				ThemeMode::Light if lumens > lumens_threshold => {
+					this.last_threshold_update.update(cx, |update, cx| {
+						*update = None;
+						cx.notify();
+					})
+				}
+
+				ThemeMode::Dark if lumens <= lumens_threshold => {
+					this.last_threshold_update.update(cx, |update, cx| {
+						*update = None;
+						cx.notify();
+					})
+				}
+
+				_ => {}
+			}
+		})
+		.detach();
+
+		cx.observe(&theme_mode, |_, theme_mode, cx| {
+			match theme_mode.read(cx) {
+				ThemeMode::Dark => debug!("Will turn into dark mode"),
+				ThemeMode::Light => debug!("Will turn into light mode"),
+			};
+		})
+		.detach();
+
 		return Self {
-			state,
+			persistent_state,
+			_light_sensor,
+			current_lumens,
+			_current_lumens_task,
 			lumens_slider_state,
 			seconds_slider_state,
+			last_threshold_update,
+			theme_mode,
 		};
 	}
 
 	fn toggles(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let Self { state, .. } = self;
+		let Self {
+			persistent_state: state,
+			..
+		} = self;
 
 		let enable_theme_switching = state.read(cx).enable_theme_switching;
 		let enable_autostart = state.read(cx).enable_autostart;
@@ -146,31 +292,52 @@ impl App {
 					.cursor_pointer()
 					.label("Start at login")
 					.checked(enable_autostart)
-					.on_click(cx.listener(|App { state, .. }, checked, _, cx| {
-						state.update(cx, |this, cx| {
-							this.enable_autostart = *checked;
-							cx.notify();
-						})
-					})),
+					.on_click(cx.listener(
+						|App {
+						   persistent_state: state,
+						   ..
+						 },
+						 checked,
+						 _,
+						 cx| {
+							state.update(cx, |this, cx| {
+								this.enable_autostart = *checked;
+								cx.notify();
+							})
+						},
+					)),
 			)
 			.child(
 				Checkbox::new("enable_theme_switching")
 					.cursor_pointer()
 					.label("Enable theme switching")
 					.checked(enable_theme_switching)
-					.on_click(cx.listener(|App { state, .. }, checked, _, cx| {
-						state.update(cx, |this, cx| {
-							this.enable_theme_switching = *checked;
-							cx.notify();
-						});
-					})),
+					.on_click(cx.listener(
+						|App {
+						   persistent_state: state,
+						   ..
+						 },
+						 checked,
+						 _,
+						 cx| {
+							state.update(cx, |this, cx| {
+								this.enable_theme_switching = *checked;
+								cx.notify();
+							});
+						},
+					)),
 			);
 	}
 
 	fn lumens_slider(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let Self { state, .. } = self;
+		let Self {
+			persistent_state: state,
+			current_lumens,
+			..
+		} = self;
 
 		let lumens_threshold = state.read(cx).lumens_threshold;
+		let current_lumens = current_lumens.read(cx);
 
 		return div()
 			.w_full()
@@ -192,7 +359,7 @@ impl App {
 							.cursor_pointer()
 							.on_click(cx.listener(
 								|App {
-								   state,
+								   persistent_state: state,
 								   lumens_slider_state,
 								   ..
 								 },
@@ -213,11 +380,20 @@ impl App {
 					),
 			)
 			.text_color(cx.theme().muted_foreground)
-			.child(format!("{lumens_threshold}"));
+			.child(
+				h_flex()
+					.w_full()
+					.justify_between()
+					.child(format!("{lumens_threshold}"))
+					.child(format!("Current level: {current_lumens}")),
+			);
 	}
 
 	fn seconds_slider(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let Self { state, .. } = self;
+		let Self {
+			persistent_state: state,
+			..
+		} = self;
 
 		let seconds_threshold = state.read(cx).seconds_threshold;
 
@@ -241,7 +417,7 @@ impl App {
 							.cursor_pointer()
 							.on_click(cx.listener(
 								|App {
-								   state,
+								   persistent_state: state,
 								   seconds_slider_state,
 								   ..
 								 },
@@ -265,7 +441,10 @@ impl App {
 	}
 
 	fn explainer_text(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		let Self { state, .. } = self;
+		let Self {
+			persistent_state: state,
+			..
+		} = self;
 
 		let lumen_threshold = state.read(cx).lumens_threshold;
 		let seconds_threshold = state.read(cx).seconds_threshold;

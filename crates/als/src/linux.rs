@@ -25,10 +25,10 @@ pub enum LinuxALSError {
 type Result<T> = std::result::Result<T, LinuxALSError>;
 
 pub struct LinuxSensorReader {
-	device_file: RefCell<Option<PathBuf>>,
+	device_file:             RefCell<Option<PathBuf>>,
 	pub(crate) backup_files: Vec<PathBuf>,
 	#[cfg(test)]
-	pub(crate) _test: i32,
+	pub(crate) _test:        i32,
 }
 
 impl LinuxSensorReader {
@@ -97,7 +97,7 @@ impl LinuxSensorReader {
 }
 
 impl LightSensor for RefCell<LinuxSensorReader> {
-	async fn read(&mut self) -> crate::Result<SensorOutput> {
+	async fn read(&self) -> crate::Result<SensorOutput> {
 		let reading = self
 			.borrow_mut()
 			.take_reading()

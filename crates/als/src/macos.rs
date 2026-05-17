@@ -104,7 +104,7 @@ impl MacOSSensorReader {
 }
 
 impl LightSensor for RefCell<MacOSSensorReader> {
-	async fn read(&mut self) -> super::Result<SensorOutput> {
+	async fn read(&self) -> super::Result<SensorOutput> {
 		return self.borrow_mut().take_reading().map_err(ALSError::Platform);
 	}
 

@@ -7,8 +7,10 @@ mod linux;
 mod macos;
 mod tests;
 
-use std::cell::RefMut;
-use std::time::Duration;
+use std::{
+	cell::{RefCell, RefMut},
+	time::Duration,
+};
 
 use async_stream::stream;
 use futures::Stream;
@@ -16,19 +18,21 @@ use futures_time::task::sleep;
 
 use crate::error::ALSError;
 #[cfg(target_os = "linux")]
-use crate::linux::LinuxSensorReader;
+use crate::linux::LinuxSensorReader as PlatformSensorReader;
 #[cfg(target_os = "macos")]
-use crate::macos::MacOSSensorReader;
+use crate::macos::MacOSSensorReader as PlatformSensorReader;
 
 pub(crate) type Result<T> = std::result::Result<T, ALSError>;
+
+pub type ConcreteSensor = RefCell<PlatformSensorReader>;
 
 pub type SensorOutput = f64;
 pub trait LightSensor {
 	/// Read the sensor and return the current light level.
-	async fn read(&mut self) -> Result<SensorOutput>;
+	async fn read(&self) -> Result<SensorOutput>;
 
 	/// Returns an infinite stream that polls the sensor at the specified duration.
-	fn stream(&mut self, poll_rate: Duration) -> impl Stream<Item = Result<SensorOutput>> {
+	fn stream(&self, poll_rate: Duration) -> impl Stream<Item = Result<SensorOutput>> {
 		return stream! {
 			loop {
 				yield self.read().await;
@@ -41,20 +45,12 @@ pub trait LightSensor {
 	fn has_sensor(&self) -> bool;
 
 	/// Mutate the concrete sensor reader.
-	#[cfg(target_os = "linux")]
-	fn mutate_concrete(&self, mutate: impl FnOnce(RefMut<'_, linux::LinuxSensorReader>));
-
-	/// Mutate the concrete sensor reader.
-	#[cfg(target_os = "macos")]
-	fn mutate_concrete(&self, mutate: impl FnOnce(RefMut<'_, macos::MacOSSensorReader>));
+	fn mutate_concrete(&self, mutate: impl FnOnce(RefMut<'_, PlatformSensorReader>));
 }
 
 /// Returns whether the platform has a sensor available.
 pub fn is_sensor_available() -> bool {
-	#[cfg(target_os = "macos")]
-	return macos::MacOSSensorReader::new().has_sensor();
-	#[cfg(target_os = "linux")]
-	return linux::LinuxSensorReader::new().has_sensor();
+	return PlatformSensorReader::new().has_sensor();
 }
 
 /// Returns this platform's sensor reader, if one is available.
@@ -66,9 +62,6 @@ pub fn is_sensor_available() -> bool {
 ///   sensor.
 /// - (Linux only) [`LinuxALSError`]: When the sensor reader is not available. This can occur if
 ///   your Linux-based system does not have a sensor.
-pub async fn get_platform_reader() -> Result<impl LightSensor> {
-	#[cfg(target_os = "macos")]
-	return Ok(MacOSSensorReader::new());
-	#[cfg(target_os = "linux")]
-	return Ok(LinuxSensorReader::new());
+pub fn get_platform_reader() -> ConcreteSensor {
+	return PlatformSensorReader::new();
 }

@@ -20,9 +20,7 @@ fn test_read() {
 			return;
 		}
 
-		let mut sensor = get_platform_reader()
-			.await
-			.expect("Device should have a sensor");
+		let sensor = get_platform_reader();
 
 		let result = sensor.read().await;
 
@@ -41,9 +39,7 @@ fn test_poll_read() {
 			return;
 		}
 
-		let mut sensor = get_platform_reader()
-			.await
-			.expect("Device should have a sensor");
+		let sensor = get_platform_reader();
 
 		let mut stream = pin!(sensor.stream(Duration::from_secs(1)));
 		const MAX_ITERATIONS: i32 = 10;
@@ -73,9 +69,7 @@ fn test_mutate() {
 			return;
 		}
 
-		let sensor = get_platform_reader()
-			.await
-			.expect("Device should have a sensor");
+		let sensor = get_platform_reader();
 
 		sensor.mutate_concrete(|mut concrete| {
 			let before_mutate = concrete._test;
