@@ -1,5 +1,10 @@
 # Multiplatform Ambient Light Sensor Theme Switcher
 
+> [!NOTE]
+> If you're viewing this on GitHub, please note that this is a mirror for CI/CD
+> purposes only. Please make sure to refer all issues and pull requests to the
+> [main repository on Codeberg](https://codeberg.org/STBoyden/mpalsts).
+
 ![Window Screenshot](docs/assets/window.png)
 
 A multiplatform GUI application that switches your system's theme based on the

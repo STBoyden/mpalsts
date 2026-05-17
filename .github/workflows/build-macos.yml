@@ -1,0 +1,54 @@
+name: Build macOS app bundle
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle --version 0.10.0 --locked
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Build macOS app bundle
+        run: cargo bundle --release --format osx
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "MPALSTS" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            "target/release/bundle/osx/MPALSTS.dmg" \
+            "target/release/bundle/osx/Multi-platform ALS Theme Switcher.app"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpalsts-macos-app
+          path: target/release/bundle/osx/MPALSTS.app
+          if-no-files-found: error
