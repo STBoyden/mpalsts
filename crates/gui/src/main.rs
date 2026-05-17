@@ -553,8 +553,6 @@ fn main() {
 				window_bounds: Some(WindowBounds::centered(size(px(600.), px(400.)), cx)),
 				window_decorations: Some(WindowDecorations::Client),
 				is_resizable: false,
-				is_movable: false,
-				is_minimizable: false,
 				..Default::default()
 			};
 
@@ -567,6 +565,10 @@ fn main() {
 					.open_window(window_options, |window, cx| {
 						window.activate_window();
 						window.set_window_title("Multiplatform Ambient Light Sensor Theme Switcher");
+						window.on_window_should_close(cx, |window, _| {
+							window.minimize_window();
+							return false;
+						});
 
 						window
 							.observe_window_appearance(|window, cx| {
