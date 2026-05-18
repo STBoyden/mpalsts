@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    if: ${{ startsWith(github.server_url, 'https://github.com') }}
     runs-on: macos-latest
 
     env:
