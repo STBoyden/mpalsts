@@ -2,13 +2,14 @@ use osakit::{Language, Script};
 
 use crate::ThemeSwitcher;
 
+#[derive(Debug)]
 pub struct MacosThemeSwitcher {
 	dark_mode_script:  Script,
 	light_mode_script: Script,
 }
 
 impl MacosThemeSwitcher {
-	pub fn new() -> Self {
+	pub(crate) fn new() -> Self {
 		let mut dark_mode_script = Script::new_from_source(
 			Language::AppleScript,
 			r#"tell application "System Events" to tell appearance preferences to set dark mode to true"#,

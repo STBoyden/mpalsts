@@ -27,9 +27,7 @@ use gpui_component::{
 use log::{error, trace, warn};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
-#[cfg(target_os = "linux")]
-use theme_switch::PlatformThemeSwitcher;
-use theme_switch::ThemeSwitcher;
+use theme_switch::{PlatformThemeSwitcher, ThemeSwitcher};
 
 const MIN_LUMENS_THRESHOLD: f32 = 10.;
 const DEFAULT_LUMENS_THRESHOLD: f32 = 100.;
@@ -57,6 +55,7 @@ pub struct LinuxState {
 	dark_theme:  Option<String>,
 }
 
+#[cfg(target_os = "linux")]
 impl Default for LinuxState {
 	fn default() -> Self {
 		return Self {
@@ -66,6 +65,7 @@ impl Default for LinuxState {
 	}
 }
 
+#[cfg(target_os = "linux")]
 impl LinuxState {
 	pub fn new() -> Self {
 		return Self::default();
@@ -131,13 +131,14 @@ enum ThemeMode {
 #[derive(Debug)]
 struct App {
 	persistent_state:      Entity<AppState>,
-	_light_sensor:         Entity<Rc<als::ConcreteSensor>>,
+	light_sensor:          Entity<Rc<als::ConcreteSensor>>,
 	current_lumens:        Entity<SensorOutput>,
-	_current_lumens_task:  Task<()>,
+	_current_lumens_task:  Option<Task<()>>,
 	lumens_slider_state:   Entity<SliderState>,
 	seconds_slider_state:  Entity<SliderState>,
 	last_threshold_update: Entity<Option<Instant>>,
 	theme_mode:            Entity<ThemeMode>,
+	theme_switcher:        PlatformThemeSwitcher,
 	auto_launcher:         Arc<AutoLaunch>,
 
 	#[cfg(target_os = "linux")]
@@ -147,7 +148,7 @@ struct App {
 }
 
 impl App {
-	fn new(persistent_state: Entity<AppState>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+	fn new(persistent_state: Entity<AppState>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
 		let lumens_slider_state = cx.new(|cx| {
 			return SliderState::new()
 				.default_value(persistent_state.read(cx).lumens_threshold)
@@ -184,27 +185,31 @@ impl App {
 
 		let light_sensor_rc = Rc::new(als::get_platform_reader());
 
-		let _light_sensor = cx.new(|_| return light_sensor_rc.clone());
+		let light_sensor = cx.new(|_| return light_sensor_rc.clone());
 		let current_lumens = cx.new(|_| return SensorOutput::default());
 
 		let local_clone = light_sensor_rc.clone();
 
 		// Observe sensor stream output and update state.
-		let _current_lumens_task = cx.spawn(async move |view, cx| {
-			let mut stream = Box::pin(local_clone.stream(Duration::from_secs(1)));
-			while let Some(Ok(output)) = stream.next().await {
-				if let Err(error) = view.update(cx, |this, cx| {
-					this.current_lumens.update(cx, |this, cx| {
-						*this = output;
-						cx.notify();
-					});
-				}) {
-					warn!("Failed to update lumens: {error}");
+		let _current_lumens_task = if local_clone.has_sensor() {
+			Some(cx.spawn(async move |view, cx| {
+				let mut stream = Box::pin(local_clone.stream(Duration::from_secs(1)));
+				while let Some(Ok(output)) = stream.next().await {
+					if let Err(error) = view.update(cx, |this, cx| {
+						this.current_lumens.update(cx, |this, cx| {
+							*this = output;
+							cx.notify();
+						});
+					}) {
+						warn!("Failed to update lumens: {error}");
+					}
 				}
-			}
 
-			return;
-		});
+				return;
+			}))
+		} else {
+			None
+		};
 
 		let last_threshold_update = cx.new(|_| return None);
 		let theme_mode = cx.new(|cx| {
@@ -297,12 +302,10 @@ impl App {
 		})
 		.detach();
 
-		cx.observe(&theme_mode, |_, theme_mode, cx| {
-			let theme_switcher = theme_switch::get();
-
+		cx.observe(&theme_mode, |this, theme_mode, cx| {
 			match theme_mode.read(cx) {
-				ThemeMode::Dark => theme_switcher.to_dark(),
-				ThemeMode::Light => theme_switcher.to_light(),
+				ThemeMode::Dark => this.theme_switcher.to_dark(),
+				ThemeMode::Light => this.theme_switcher.to_light(),
 			};
 		})
 		.detach();
@@ -324,26 +327,27 @@ impl App {
 				.expect("could not build auto launcher"),
 		);
 
-		let theme_switcher = PlatformThemeSwitcher::new();
+		let theme_switcher = theme_switch::get();
 		#[cfg(target_os = "linux")]
 		let themes = theme_switcher.get_themes();
 
 		#[cfg(target_os = "linux")]
 		let linux_light_theme_selector_state =
-			cx.new(|cx| return SelectState::new(themes.clone(), None, window, cx));
+			cx.new(|cx| return SelectState::new(themes.clone(), None, _window, cx));
 		#[cfg(target_os = "linux")]
 		let linux_dark_theme_selector_state =
-			cx.new(|cx| return SelectState::new(themes.clone(), None, window, cx));
+			cx.new(|cx| return SelectState::new(themes.clone(), None, _window, cx));
 
 		return Self {
 			persistent_state,
-			_light_sensor,
+			light_sensor,
 			current_lumens,
 			_current_lumens_task,
 			lumens_slider_state,
 			seconds_slider_state,
 			last_threshold_update,
 			theme_mode,
+			theme_switcher,
 			auto_launcher,
 
 			#[cfg(target_os = "linux")]
@@ -575,27 +579,38 @@ impl App {
 			.child(Separator::horizontal().w_full());
 	}
 
-	fn platform_specific(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+	fn platform_specific(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
 		#[cfg(target_os = "linux")]
-		return self.linux_theme_switcher(cx);
+		return self.linux_theme_switcher(_cx);
 		#[cfg(not(target_os = "linux"))]
 		return div().into_any();
 	}
 
 	fn body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-		return v_flex()
-			.size_full()
-			.p_4()
-			.justify_center()
-			.items_center()
-			.content_center()
-			.gap_4()
-			.child(self.toggles(cx))
-			.child(Separator::horizontal().w_full())
-			.child(self.platform_specific(cx))
-			.child(self.lumens_slider(cx))
-			.child(self.seconds_slider(cx))
-			.child(self.explainer_text(cx));
+		let light_sensor = self.light_sensor.read(cx);
+
+		if light_sensor.has_sensor() {
+			return v_flex()
+				.size_full()
+				.p_4()
+				.justify_center()
+				.items_center()
+				.content_center()
+				.gap_4()
+				.child(self.toggles(cx))
+				.child(Separator::horizontal().w_full())
+				.child(self.platform_specific(cx))
+				.child(self.lumens_slider(cx))
+				.child(self.seconds_slider(cx))
+				.child(self.explainer_text(cx));
+		} else {
+			return v_flex()
+				.size_full()
+				.justify_center()
+				.items_center()
+				.content_center()
+				.child("No sensor found for this device");
+		}
 	}
 }
 

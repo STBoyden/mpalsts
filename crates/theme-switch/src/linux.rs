@@ -8,7 +8,7 @@ pub struct LinuxThemeSwitcher {
 }
 
 impl LinuxThemeSwitcher {
-	pub fn new() -> Self {
+	pub(crate) fn new() -> Self {
 		return Self {
 			light_theme: None,
 			dark_theme:  None,
