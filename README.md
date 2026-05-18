@@ -1,3 +1,5 @@
+[![Build macOS app bundle](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml/badge.svg)](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml)
+
 # Multiplatform Ambient Light Sensor Theme Switcher
 
 > [!NOTE]
@@ -5,8 +7,9 @@
 > purposes only. Please make sure to refer all issues and pull requests to the
 > [main repository on Codeberg](https://codeberg.org/STBoyden/mpalsts).
 >
-> For macOS builds, please see
-> [here](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml).
+> - For macOS builds, please see
+>   [here](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml).
+> - For Linux builds, please see: [here]().
 
 ![Window Screenshot](docs/assets/window.png)
 
