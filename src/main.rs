@@ -13,6 +13,8 @@ use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use gpui::{prelude::*, *};
+#[cfg(target_os = "linux")]
+use gpui_component::select::SelectState;
 use gpui_component::{
 	ActiveTheme, Root, Theme, TitleBar,
 	button::{Button, ButtonVariants},
@@ -25,6 +27,8 @@ use gpui_component::{
 use log::{error, trace, warn};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
+use theme_switch::PlatformThemeSwitcher;
 use theme_switch::ThemeSwitcher;
 
 const MIN_LUMENS_THRESHOLD: f32 = 10.;
@@ -41,15 +45,42 @@ pub struct AppState {
 	enable_autostart:       bool,
 	lumens_threshold:       f32,
 	seconds_threshold:      f32,
+
+	#[cfg(target_os = "linux")]
+	linux: LinuxState,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LinuxState {
+	light_theme: Option<String>,
+	dark_theme:  Option<String>,
+}
+
+impl Default for LinuxState {
+	fn default() -> Self {
+		return Self {
+			light_theme: None,
+			dark_theme:  None,
+		};
+	}
+}
+
+impl LinuxState {
+	pub fn new() -> Self {
+		return Self::default();
+	}
 }
 
 impl Default for AppState {
 	fn default() -> Self {
 		return Self {
-			enable_theme_switching: false,
-			enable_autostart:       false,
-			lumens_threshold:       DEFAULT_LUMENS_THRESHOLD,
-			seconds_threshold:      DEFAULT_SECONDS_THRESHOLD,
+			enable_theme_switching:            false,
+			enable_autostart:                  false,
+			lumens_threshold:                  DEFAULT_LUMENS_THRESHOLD,
+			seconds_threshold:                 DEFAULT_SECONDS_THRESHOLD,
+			#[cfg(target_os = "linux")]
+			linux:                             LinuxState::default(),
 		};
 	}
 }
@@ -108,10 +139,15 @@ struct App {
 	last_threshold_update: Entity<Option<Instant>>,
 	theme_mode:            Entity<ThemeMode>,
 	auto_launcher:         Arc<AutoLaunch>,
+
+	#[cfg(target_os = "linux")]
+	linux_light_theme_selector_state: Entity<SelectState<Vec<String>>>,
+	#[cfg(target_os = "linux")]
+	linux_dark_theme_selector_state:  Entity<SelectState<Vec<String>>>,
 }
 
 impl App {
-	fn new(persistent_state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
+	fn new(persistent_state: Entity<AppState>, window: &mut Window, cx: &mut Context<Self>) -> Self {
 		let lumens_slider_state = cx.new(|cx| {
 			return SliderState::new()
 				.default_value(persistent_state.read(cx).lumens_threshold)
@@ -288,6 +324,17 @@ impl App {
 				.expect("could not build auto launcher"),
 		);
 
+		let theme_switcher = PlatformThemeSwitcher::new();
+		#[cfg(target_os = "linux")]
+		let themes = theme_switcher.get_themes();
+
+		#[cfg(target_os = "linux")]
+		let linux_light_theme_selector_state =
+			cx.new(|cx| return SelectState::new(themes.clone(), None, window, cx));
+		#[cfg(target_os = "linux")]
+		let linux_dark_theme_selector_state =
+			cx.new(|cx| return SelectState::new(themes.clone(), None, window, cx));
+
 		return Self {
 			persistent_state,
 			_light_sensor,
@@ -298,6 +345,11 @@ impl App {
 			last_threshold_update,
 			theme_mode,
 			auto_launcher,
+
+			#[cfg(target_os = "linux")]
+			linux_light_theme_selector_state,
+			#[cfg(target_os = "linux")]
+			linux_dark_theme_selector_state,
 		};
 	}
 
@@ -493,6 +545,43 @@ impl App {
 			.child(format!("When the ambient light drops below {lumen_threshold} lumens for at least {seconds_threshold} seconds, the theme will switch to dark mode."));
 	}
 
+	#[cfg(target_os = "linux")]
+	fn linux_theme_switcher(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
+		use gpui_component::select::Select;
+
+		let App {
+			linux_light_theme_selector_state,
+			linux_dark_theme_selector_state,
+			..
+		} = self;
+
+		return v_flex()
+			.w_full()
+			.child("Linux theme overrides:")
+			.child(
+				h_flex()
+					.justify_between()
+					.child(
+						v_flex()
+							.child("Light theme:")
+							.child(Select::new(linux_light_theme_selector_state)),
+					)
+					.child(
+						v_flex()
+							.child("Dark theme:")
+							.child(Select::new(linux_dark_theme_selector_state)),
+					),
+			)
+			.child(Separator::horizontal().w_full());
+	}
+
+	fn platform_specific(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+		#[cfg(target_os = "linux")]
+		return self.linux_theme_switcher(cx);
+		#[cfg(not(target_os = "linux"))]
+		return div().into_any();
+	}
+
 	fn body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
 		return v_flex()
 			.size_full()
@@ -503,6 +592,7 @@ impl App {
 			.gap_4()
 			.child(self.toggles(cx))
 			.child(Separator::horizontal().w_full())
+			.child(self.platform_specific(cx))
 			.child(self.lumens_slider(cx))
 			.child(self.seconds_slider(cx))
 			.child(self.explainer_text(cx));
@@ -586,7 +676,7 @@ fn main() {
 						})
 						.detach();
 
-						let view = cx.new(|cx| return App::new(state, cx));
+						let view = cx.new(|cx| return App::new(state, window, cx));
 
 						return cx.new(|cx| return Root::new(view, window, cx));
 					})
