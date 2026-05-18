@@ -55,7 +55,7 @@ impl MacOSSensorReader {
 		});
 	}
 
-	fn copy_hid_event(&mut self) -> Option<Box<IOHIDEventStruct>> {
+	fn copy_hid_event(&mut self) -> Option<*mut IOHIDEventStruct> {
 		if self.client.is_none() {
 			self.client = unsafe { Retained::from_raw(ALCALSCopyALSServiceClient()) };
 		}
@@ -67,9 +67,11 @@ impl MacOSSensorReader {
 
 			let event_ptr =
 				unsafe { IOHIDServiceClientCopyEvent(client_ptr, K_AMBIENT_LIGHT_SENSOR_EVENT, 0, 0) };
-			let event = unsafe { Box::from_raw(event_ptr) };
+			if event_ptr.is_null() {
+				return None;
+			}
 
-			return Some(event);
+			return Some(event_ptr);
 		}
 
 		return None;
@@ -85,12 +87,12 @@ impl MacOSSensorReader {
 			return Err(MacOSALSError::NoSensor);
 		}
 
-		let event = self.copy_hid_event();
+		let event_ptr = self.copy_hid_event();
 
-		if let Some(mut event) = event {
+		if let Some(event_ptr) = event_ptr {
 			let value = unsafe {
 				IOHIDEventGetFloatValue(
-					event.as_mut() as *mut _,
+					event_ptr,
 					to_event_field(K_AMBIENT_LIGHT_SENSOR_EVENT as i32),
 				)
 			};
