@@ -167,7 +167,7 @@ jobs:
         run: cargo build --release
 
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+        uses: https://github.com/Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
 
