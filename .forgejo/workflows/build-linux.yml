@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - runner: codeberg-medium-lazy
-            distro: debian
+            distro: node
             package_format: deb
             arch: x86_64
           - runner: codeberg-medium-lazy
@@ -47,11 +47,21 @@ jobs:
       CARGO_TERM_COLOR: always
 
     steps:
-      - name: Ensure Node.js v24
+      - name: Ensure Node.js v24 (arm64)
+        if: ${{ matrix.distro != 'node' && matrix.arch == "arm64" }}
         run: |
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
-          \. "$HOME/.nvm/nvm.sh"
-          nvm install 24
+          curl -o node.tar.xz https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-arm64.tar.xz
+          tar -xf node.tar.xz
+          mv node-v24.15.0-linux-arm64/bin/* /usr/local/bin/
+          rm -rf node.tar.xz
+
+      - name: Ensure Node.js v24 (x86_64)
+        if: ${{ matrix.distro != 'node' && matrix.arch == "x86_64" }}
+        run: |
+          curl -o node.tar.xz https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-x64.tar.xz
+          tar -xf node.tar.xz
+          mv node-v24.15.0-linux-x64/bin/* /usr/local/bin/
+          rm -rf node.tar.xz
 
       - name: Checkout
         uses: actions/checkout@v4
