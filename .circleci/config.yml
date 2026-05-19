@@ -144,10 +144,10 @@ jobs:
             set -eux
             case "<< parameters.package_format >>" in
               deb)
-                cargo install cargo-deb
+                cargo install cargo-deb --force
                 ;;
               rpm)
-                cargo install cargo-generate-rpm
+                cargo install cargo-generate-rpm --force
                 ;;
               *)
                 echo "Unsupported package format: << parameters.package_format >>" >&2
@@ -218,7 +218,7 @@ jobs:
 
       - run:
           name: Install cargo-bundle
-          command: cargo install cargo-bundle --version 0.10.0 --locked
+          command: cargo install cargo-bundle --version 0.10.0 --locked --force
 
       - run:
           name: Install create-dmg
