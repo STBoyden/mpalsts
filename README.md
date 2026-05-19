@@ -1,4 +1,4 @@
-[![Build macOS app bundle](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml/badge.svg)](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml)
+[![CircleCI](https://dl.circleci.com/status-badge/img/circleci/DXz9utve1QtLaTqQLCq2P3/9hVQV6N2swfio8TrtW2Mym/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/circleci/DXz9utve1QtLaTqQLCq2P3/9hVQV6N2swfio8TrtW2Mym/tree/main)
 
 # Multiplatform Ambient Light Sensor Theme Switcher
 

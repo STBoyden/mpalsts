@@ -238,6 +238,7 @@ jobs:
               --window-size 800 400 \
               --icon-size 100 \
               --app-drop-link 600 185 \
+              --skip-jenkins \
               "target/release/bundle/osx/MPALSTS.dmg" \
               "target/release/bundle/osx/Multi-platform ALS Theme Switcher.app"
 
