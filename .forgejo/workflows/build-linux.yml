@@ -153,6 +153,7 @@ jobs:
           curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
           . "$HOME/.cargo/env"
           rustup target add "${{ steps.arch.outputs.rust_target }}"
+          echo "PATH=/root/.cargo/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Install cargo-generate-rpm
         if: ${{ matrix.package_format == 'rpm' }}
