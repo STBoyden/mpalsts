@@ -11,35 +11,45 @@ jobs:
   build:
     runs-on: ${{ matrix.runner }}
     container:
-      image: ${{ matrix.distro }}:latest
+      image: ${{ matrix.container }}
 
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: codeberg-medium-lazy
-            distro: node
+            distro: debian
+            container: "node:latest"
             package_format: deb
             arch: x86_64
+
           - runner: codeberg-medium-lazy
             distro: ubuntu
+            container: "${{ matrix.distro }}:latest"
             package_format: deb
             arch: x86_64
+
           - runner: codeberg-medium-lazy
             distro: fedora
+            container: "${{ matrix.distro }}:latest"
             package_format: rpm
             arch: x86_64
 
           - runner: docker-arm
             distro: debian
+            container: "node:latest"
             package_format: deb
             arch: arm64
+
           - runner: docker-arm
             distro: ubuntu
+            container: "${{ matrix.distro }}:latest"
             package_format: deb
             arch: arm64
+
           - runner: docker-arm
             distro: fedora
+            container: "${{ matrix.distro }}:latest"
             package_format: rpm
             arch: arm64
 
