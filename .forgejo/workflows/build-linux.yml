@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Ensure Node.js v24 (arm64)
-        if: ${{ matrix.distro != 'node' && matrix.arch == "arm64" }}
+        if: ${{ matrix.container != 'node:latest' && matrix.arch == 'arm64' }}
         run: |
           curl -o node.tar.xz https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-arm64.tar.xz
           tar -xf node.tar.xz
@@ -66,7 +66,7 @@ jobs:
           rm -rf node.tar.xz
 
       - name: Ensure Node.js v24 (x86_64)
-        if: ${{ matrix.distro != 'node' && matrix.arch == "x86_64" }}
+        if: ${{ matrix.container != 'node:latest' && matrix.arch == 'x86_64' }}
         run: |
           curl -o node.tar.xz https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-x64.tar.xz
           tar -xf node.tar.xz
