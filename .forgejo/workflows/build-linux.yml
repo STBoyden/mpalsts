@@ -166,6 +166,11 @@ jobs:
       - name: Build
         run: cargo build --release
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
       - name: Strip binary
         run: strip -s target/release/mpalsts
 
@@ -179,7 +184,7 @@ jobs:
 
       - name: Upload RPM artifact
         if: ${{ matrix.package_format == 'rpm' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mpalsts-${{ matrix.distro }}-${{ steps.arch.outputs.package_arch }}-rpm
           path: target/generate-rpm/*.rpm
@@ -187,7 +192,7 @@ jobs:
 
       - name: Upload DEB artifact
         if: ${{ matrix.package_format == 'deb' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: mpalsts-${{ matrix.distro }}-${{ steps.arch.outputs.package_arch }}-deb
           path: target/debian/*.deb
