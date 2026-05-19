@@ -1,0 +1,291 @@
+version: 2.1
+
+jobs:
+  build-linux:
+    parameters:
+      distro:
+        type: string
+      container:
+        type: string
+      package_format:
+        type: enum
+        enum: [deb, rpm]
+      arch:
+        type: enum
+        enum: [x86_64, arm64]
+    docker:
+      - image: << parameters.container >>
+    resource_class: << parameters.arch == "arm64" and "arm.medium" or "medium" >>
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-cargo-linux-<< parameters.distro >>-<< parameters.arch >>-{{ checksum "Cargo.lock" }}
+            - v1-cargo-linux-<< parameters.distro >>-<< parameters.arch >>-
+            - v1-cargo-linux-
+
+      - run:
+          name: Install build dependencies
+          command: |
+            set -eux
+            case "<< parameters.package_format >>" in
+              deb)
+                apt-get update
+                DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                  ca-certificates \
+                  curl \
+                  git \
+                  build-essential \
+                  pkg-config \
+                  clang \
+                  libasound2-dev \
+                  libfontconfig1-dev \
+                  libfreetype6-dev \
+                  libwayland-dev \
+                  libx11-dev \
+                  libx11-xcb-dev \
+                  libxcb1-dev \
+                  libxcursor-dev \
+                  libxi-dev \
+                  libxkbcommon-dev \
+                  libxkbcommon-x11-dev \
+                  libxrandr-dev \
+                  libvulkan-dev
+                ;;
+              rpm)
+                dnf install -y \
+                  ca-certificates \
+                  curl \
+                  git \
+                  gcc \
+                  gcc-c++ \
+                  make \
+                  pkgconf-pkg-config \
+                  clang \
+                  binutils \
+                  alsa-lib-devel \
+                  fontconfig-devel \
+                  freetype-devel \
+                  libX11-devel \
+                  libXcursor-devel \
+                  libXi-devel \
+                  libxkbcommon-devel \
+                  libxkbcommon-x11-devel \
+                  libXrandr-devel \
+                  libxcb-devel \
+                  wayland-devel \
+                  vulkan-loader-devel
+                ;;
+              *)
+                echo "Unsupported package format: << parameters.package_format >>" >&2
+                exit 1
+                ;;
+            esac
+
+      - run:
+          name: Ensure Node.js v24
+          command: |
+            set -eux
+            if [ "<< parameters.container >>" = "node:latest" ]; then
+              exit 0
+            fi
+
+            case "<< parameters.arch >>" in
+              arm64)
+                node_url="https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-arm64.tar.xz"
+                node_dir="node-v24.15.0-linux-arm64"
+                ;;
+              x86_64)
+                node_url="https://nodejs.org/dist/v24.15.0/node-v24.15.0-linux-x64.tar.xz"
+                node_dir="node-v24.15.0-linux-x64"
+                ;;
+              *)
+                echo "Unsupported architecture: << parameters.arch >>" >&2
+                exit 1
+                ;;
+            esac
+
+            curl -fsSL -o node.tar.xz "$node_url"
+            tar -xf node.tar.xz
+            mv "$node_dir"/bin/* /usr/local/bin/
+            rm -rf node.tar.xz "$node_dir"
+
+      - run:
+          name: Install Rust
+          command: |
+            set -eux
+            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            case "<< parameters.arch >>" in
+              x86_64)
+                echo 'export RUST_TARGET=x86_64-unknown-linux-gnu' >> "$BASH_ENV"
+                echo 'export PACKAGE_ARCH=amd64' >> "$BASH_ENV"
+                ;;
+              arm64)
+                echo 'export RUST_TARGET=aarch64-unknown-linux-gnu' >> "$BASH_ENV"
+                echo 'export PACKAGE_ARCH=arm64' >> "$BASH_ENV"
+                ;;
+              *)
+                echo "Unsupported architecture: << parameters.arch >>" >&2
+                exit 1
+                ;;
+            esac
+            rustup target add "$RUST_TARGET"
+
+      - run:
+          name: Install package tooling
+          command: |
+            set -eux
+            case "<< parameters.package_format >>" in
+              deb)
+                cargo install cargo-deb
+                ;;
+              rpm)
+                cargo install cargo-generate-rpm
+                ;;
+              *)
+                echo "Unsupported package format: << parameters.package_format >>" >&2
+                exit 1
+                ;;
+            esac
+
+      - run:
+          name: Build release binary
+          command: cargo build --release
+
+      - run:
+          name: Strip binary
+          command: strip -s target/release/mpalsts
+
+      - run:
+          name: Generate package artifact
+          command: |
+            set -eux
+            mkdir -p artifacts
+            case "<< parameters.package_format >>" in
+              deb)
+                cargo deb
+                cp target/debian/*.deb artifacts/
+                ;;
+              rpm)
+                cargo generate-rpm
+                cp target/generate-rpm/*.rpm artifacts/
+                ;;
+              *)
+                echo "Unsupported package format: << parameters.package_format >>" >&2
+                exit 1
+                ;;
+            esac
+            ls -la artifacts
+
+      - save_cache:
+          key: v1-cargo-linux-<< parameters.distro >>-<< parameters.arch >>-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+            - ~/.cargo/bin
+
+      - store_artifacts:
+          path: artifacts
+          destination: mpalsts-<< parameters.distro >>-<< parameters.arch >>-<< parameters.package_format >>
+
+  build-macos:
+    macos:
+      xcode: "16.4.0"
+    resource_class: m4pro.medium
+    environment:
+      CARGO_TERM_COLOR: always
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-cargo-macos-{{ checksum "Cargo.lock" }}
+            - v1-cargo-macos-
+
+      - run:
+          name: Install Rust
+          command: |
+            set -eux
+            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+
+      - run:
+          name: Install cargo-bundle
+          command: cargo install cargo-bundle --version 0.10.0 --locked
+
+      - run:
+          name: Install create-dmg
+          command: brew install create-dmg
+
+      - run:
+          name: Build macOS app bundle
+          command: cargo bundle --release --format osx
+
+      - run:
+          name: Create DMG
+          command: |
+            set -eux
+            create-dmg \
+              --volname "MPALSTS" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --app-drop-link 600 185 \
+              "target/release/bundle/osx/MPALSTS.dmg" \
+              "target/release/bundle/osx/Multi-platform ALS Theme Switcher.app"
+
+      - save_cache:
+          key: v1-cargo-macos-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+            - ~/.cargo/bin
+
+      - store_artifacts:
+          path: target/release/bundle/osx/MPALSTS.dmg
+          destination: mpalsts-macos-app
+
+workflows:
+  build:
+    jobs:
+      - build-linux:
+          name: build-linux-debian-x86_64
+          distro: debian
+          container: node:latest
+          package_format: deb
+          arch: x86_64
+      - build-linux:
+          name: build-linux-ubuntu-x86_64
+          distro: ubuntu
+          container: ubuntu:latest
+          package_format: deb
+          arch: x86_64
+      - build-linux:
+          name: build-linux-fedora-x86_64
+          distro: fedora
+          container: fedora:latest
+          package_format: rpm
+          arch: x86_64
+      - build-linux:
+          name: build-linux-debian-arm64
+          distro: debian
+          container: node:latest
+          package_format: deb
+          arch: arm64
+      - build-linux:
+          name: build-linux-ubuntu-arm64
+          distro: ubuntu
+          container: ubuntu:latest
+          package_format: deb
+          arch: arm64
+      - build-linux:
+          name: build-linux-fedora-arm64
+          distro: fedora
+          container: fedora:latest
+          package_format: rpm
+          arch: arm64
+      - build-macos
