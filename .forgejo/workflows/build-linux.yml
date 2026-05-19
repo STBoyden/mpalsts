@@ -1,0 +1,173 @@
+name: Build Linux packages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ${{ matrix.distro }}:latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: codeberg-medium-lazy
+            distro: debian
+            package_format: deb
+            arch: x86_64
+          - runner: codeberg-medium-lazy
+            distro: ubuntu
+            package_format: deb
+            arch: x86_64
+          - runner: codeberg-medium-lazy
+            distro: fedora
+            package_format: rpm
+            arch: x86_64
+
+          - runner: docker-arm
+            distro: debian
+            package_format: deb
+            arch: arm64
+          - runner: docker-arm
+            distro: ubuntu
+            package_format: deb
+            arch: arm64
+          - runner: docker-arm
+            distro: fedora
+            package_format: rpm
+            arch: arm64
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Ensure Node.js v24
+        run: |
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+          \. "$HOME/.nvm/nvm.sh"
+          nvm install 24
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect target architecture
+        id: arch
+        run: |
+          set -eu
+          case "$(uname -m)" in
+            x86_64)
+              echo "rust_target=x86_64-unknown-linux-gnu" >> "$GITHUB_OUTPUT"
+              echo "package_arch=amd64" >> "$GITHUB_OUTPUT"
+              ;;
+            aarch64|arm64)
+              echo "rust_target=aarch64-unknown-linux-gnu" >> "$GITHUB_OUTPUT"
+              echo "package_arch=arm64" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install build dependencies on Debian/Ubuntu
+        if: ${{ matrix.package_format == 'deb' }}
+        run: |
+          set -eux
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates \
+            curl \
+            git \
+            build-essential \
+            pkg-config \
+            clang \
+            libasound2-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libwayland-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcb1-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxrandr-dev \
+            libvulkan-dev
+
+      - name: Install build dependencies on Fedora
+        if: ${{ matrix.package_format == 'rpm' }}
+        run: |
+          set -eux
+          dnf install -y \
+            ca-certificates \
+            curl \
+            git \
+            gcc \
+            gcc-c++ \
+            make \
+            pkgconf-pkg-config \
+            clang \
+            alsa-lib-devel \
+            fontconfig-devel \
+            freetype-devel \
+            libX11-devel \
+            libXcursor-devel \
+            libXi-devel \
+            libxkbcommon-devel \
+            libxkbcommon-x11-devel \
+            libXrandr-devel \
+            libxcb-devel \
+            wayland-devel \
+            vulkan-loader-devel
+
+      - name: Install Rust
+        run: |
+          set -eux
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
+          . "$HOME/.cargo/env"
+          rustup target add "${{ steps.arch.outputs.rust_target }}"
+
+      - name: Install cargo-generate-rpm
+        if: ${{ matrix.package_format == 'rpm' }}
+        run: cargo install cargo-generate-rpm
+
+      - name: Install cargo-deb
+        if: ${{ matrix.package_format == 'deb' }}
+        run: cargo install cargo-deb
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Strip binary
+        run: strip -s target/release/mpalsts
+
+      - name: Generate RPM
+        if: ${{ matrix.package_format == 'rpm' }}
+        run: cargo generate-rpm
+
+      - name: Generate DEB
+        if: ${{ matrix.package_format == 'deb' }}
+        run: cargo deb
+
+      - name: Upload RPM artifact
+        if: ${{ matrix.package_format == 'rpm' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpalsts-${{ matrix.distro }}-${{ steps.arch.outputs.package_arch }}-rpm
+          path: target/generate-rpm/*.rpm
+          if-no-files-found: error
+
+      - name: Upload DEB artifact
+        if: ${{ matrix.package_format == 'deb' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpalsts-${{ matrix.distro }}-${{ steps.arch.outputs.package_arch }}-deb
+          path: target/debian/*.deb
+          if-no-files-found: error

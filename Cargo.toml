@@ -3,6 +3,8 @@ name = "mpalsts"
 version = "0.1.0"
 authors = ["Samuel Boyden <sam@stboyden.com>"]
 edition = "2024"
+license = "MIT"
+description = "Multiplatform theme switcher using the ambient light sensor."
 
 [workspace]
 resolver = "3"
@@ -52,3 +54,13 @@ serde = { version = "1.0.228", features = ["derive"] }
 name = "Multi-platform ALS Theme Switcher"
 identifier = "com.stboyden.mpalsts"
 osx_frameworks = ["/System/Library/PrivateFrameworks/BezelServices.framework"]
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/mpalsts", dest = "/usr/bin/mpalsts", mode = "755" }
+]
+
+[package.metadata.deb]
+assets = [
+  { source = "target/release/mpalsts", dest = "/usr/bin/mpalsts", mode = "755" }
+]
