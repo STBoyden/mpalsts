@@ -17,19 +17,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: codeberg-medium-lazy
+          - runner: docker
             distro: debian
             container: "node:latest"
             package_format: deb
             arch: x86_64
 
-          - runner: codeberg-medium-lazy
+          - runner: docker
             distro: ubuntu
             container: "ubuntu:latest"
             package_format: deb
             arch: x86_64
 
-          - runner: codeberg-medium-lazy
+          - runner: docker
             distro: fedora
             container: "fedora:latest"
             package_format: rpm
