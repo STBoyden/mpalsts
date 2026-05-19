@@ -2,6 +2,7 @@ use std::{collections::BTreeSet, env, fs, path::PathBuf, process::Command};
 
 use crate::ThemeSwitcher;
 
+#[derive(Debug, Clone)]
 pub struct LinuxThemeSwitcher {
 	light_theme: Option<String>,
 	dark_theme:  Option<String>,
