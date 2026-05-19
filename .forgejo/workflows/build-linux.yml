@@ -25,13 +25,13 @@ jobs:
 
           - runner: codeberg-medium-lazy
             distro: ubuntu
-            container: ubuntu:latest
+            container: "ubuntu:latest"
             package_format: deb
             arch: x86_64
 
           - runner: codeberg-medium-lazy
             distro: fedora
-            container: fedora:latest
+            container: "fedora:latest"
             package_format: rpm
             arch: x86_64
 
@@ -43,13 +43,13 @@ jobs:
 
           - runner: docker-arm
             distro: ubuntu
-            container: ubuntu:latest
+            container: "ubuntu:latest"
             package_format: deb
             arch: arm64
 
           - runner: docker-arm
             distro: fedora
-            container: fedora:latest
+            container: "fedora:latest"
             package_format: rpm
             arch: arm64
 
