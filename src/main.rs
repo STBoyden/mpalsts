@@ -194,18 +194,18 @@ impl App {
 		let _current_lumens_task = if local_clone.has_sensor() {
 			Some(cx.spawn(async move |view, cx| {
 				let mut stream = Box::pin(local_clone.stream(Duration::from_secs(1)));
-				while let Some(Ok(output)) = stream.next().await {
-					if let Err(error) = view.update(cx, |this, cx| {
-						this.current_lumens.update(cx, |this, cx| {
-							*this = output;
-							cx.notify();
-						});
-					}) {
-						warn!("Failed to update lumens: {error}");
+				loop {
+					while let Some(Ok(output)) = stream.next().await {
+						if let Err(error) = view.update(cx, |this, cx| {
+							this.current_lumens.update(cx, |this, cx| {
+								*this = output;
+								cx.notify();
+							});
+						}) {
+							warn!("Failed to update lumens: {error}");
+						}
 					}
 				}
-
-				return;
 			}))
 		} else {
 			None
