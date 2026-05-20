@@ -211,13 +211,12 @@ impl App {
 			None
 		};
 
+		let current_appearance = cx.window_appearance();
+
 		let last_threshold_update = cx.new(|_| return None);
-		let theme_mode = cx.new(|cx| {
-			return if *current_lumens.read(cx) <= persistent_state.read(cx).lumens_threshold as f64 {
-				ThemeMode::Dark
-			} else {
-				ThemeMode::Light
-			};
+		let theme_mode = cx.new(|_| match current_appearance {
+			WindowAppearance::Light | WindowAppearance::VibrantLight => return ThemeMode::Light,
+			WindowAppearance::Dark | WindowAppearance::VibrantDark => return ThemeMode::Dark,
 		});
 
 		// Observe lumen changes and update theme mode when time and lumen thresholds are exceeded.
