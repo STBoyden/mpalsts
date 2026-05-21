@@ -1,6 +1,42 @@
 version: 2.1
 
 jobs:
+  create-release:
+    docker:
+      - image: fedora:latest
+    resource_class: small
+
+    steps:
+      - checkout
+
+      - run:
+          name: Install Forgejo CLI
+          command: |
+            sudo dnf copr enable lihaohong/forgejo-cli -y
+            sudo dnf install forgejo-cli -y
+
+            fj -H codeberg.org auth add-key ${CB_USER} ${CB_PAT}
+
+      - run:
+          name: Create release
+          command: |
+            set -eux
+
+            TAG=$(date +'nightly.%Y-%m-%d-%H%M')
+            RELEASE="nightly-release-$(date +'%Y-%m-%d_%H-%M')"
+
+            fj -H codeberg.org release create -p --create-tag $TAG $RELEASE --repo codeberg.org/STBoyden/mpalsts
+
+            echo "export TAG=\"$TAG\"\nexport RELEASE=\"$RELEASE\"" >> $BASH_ENV
+
+            cp $BASH_ENV bash.env
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - bash.env
+            - $(pwd)/.cargo/bin
+
   build-linux:
     parameters:
       distro:
@@ -20,6 +56,11 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - checkout
+
+      - run:
+          name: Restore environment variables
+          command: |
+            cat bash.env >> $BASH_ENV
 
       - restore_cache:
           keys:
@@ -139,6 +180,16 @@ jobs:
             rustup target add "$RUST_TARGET"
 
       - run:
+          name: Auth forgejo-cli
+          command: |
+            set -eux
+            if ! command -v forgejo-cli 2>/dev/null; then
+              cargo install forgejo-cli
+            fi
+
+            fj -H codeberg.org auth add-key ${CB_USER} ${CB_PAT}
+
+      - run:
           name: Install package tooling
           command: |
             set -eux
@@ -195,6 +246,11 @@ jobs:
           path: artifacts
           destination: mpalsts-<< parameters.distro >>-<< parameters.arch >>-<< parameters.package_format >>
 
+      - run:
+          name: Add package to release
+          command: |
+            fj -H codeberg.org release asset "$RELEASE" artifacts/mpalsts--< parameters.distro >>-<< parameters.arch >>-<< parameters.package_format >> --repo codeberg.org/STBoyden/mpalsts
+
   build-macos:
     macos:
       xcode: "16.4.0"
@@ -203,6 +259,11 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - checkout
+
+      - run:
+          name: Restore environment variables
+          command: |
+            cat bash.env >> $BASH_ENV
 
       - restore_cache:
           keys:
@@ -215,6 +276,16 @@ jobs:
             set -eux
             curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+
+      - run:
+          name: Auth forgejo-cli
+          command: |
+            set -eux
+            if ! command -v forgejo-cli 2>/dev/null; then
+              cargo install forgejo-cli
+            fi
+
+            fj -H codeberg.org auth add-key ${CB_USER} ${CB_PAT}
 
       - run:
           name: Install cargo-bundle
@@ -253,43 +324,70 @@ jobs:
           path: target/release/bundle/osx/MPALSTS.dmg
           destination: mpalsts-macos-app
 
+      - run:
+          name: Add DMG to release
+          command: |
+            fj -H codeberg.org release asset "$RELEASE" target/release/bundle/osx/MPALSTS.dmg --repo codeberg.org/STBoyden/mpalsts
+
 workflows:
   build:
     jobs:
+      - create-release
+
       - build-linux:
           name: build-linux-debian-x86_64
           distro: debian
           container: node:latest
           package_format: deb
           arch: x86_64
+          requires:
+            - create-release
+
       - build-linux:
           name: build-linux-ubuntu-x86_64
           distro: ubuntu
           container: ubuntu:latest
           package_format: deb
           arch: x86_64
+          requires:
+            - create-release
+
       - build-linux:
           name: build-linux-fedora-x86_64
           distro: fedora
           container: fedora:latest
           package_format: rpm
           arch: x86_64
+          requires:
+            - create-release
+
       - build-linux:
           name: build-linux-debian-arm64
           distro: debian
           container: node:latest
           package_format: deb
           arch: arm64
+          requires:
+            - create-release
+
       - build-linux:
           name: build-linux-ubuntu-arm64
           distro: ubuntu
           container: ubuntu:latest
           package_format: deb
           arch: arm64
+          requires:
+            - create-release
+
       - build-linux:
           name: build-linux-fedora-arm64
           distro: fedora
           container: fedora:latest
           package_format: rpm
           arch: arm64
-      - build-macos
+          requires:
+            - create-release
+
+      - build-macos:
+          requires:
+            - create-release

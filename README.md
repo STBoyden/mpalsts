@@ -1,15 +1,11 @@
-[![CircleCI](https://dl.circleci.com/status-badge/img/circleci/DXz9utve1QtLaTqQLCq2P3/9hVQV6N2swfio8TrtW2Mym/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/circleci/DXz9utve1QtLaTqQLCq2P3/9hVQV6N2swfio8TrtW2Mym/tree/main)
-
 # Multiplatform Ambient Light Sensor Theme Switcher
+
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/STBoyden/mpalsts/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/STBoyden/mpalsts/tree/main)
 
 > [!NOTE]
 > If you're viewing this on GitHub, please note that this is a mirror for CI/CD
 > purposes only. Please make sure to refer all issues and pull requests to the
 > [main repository on Codeberg](https://codeberg.org/STBoyden/mpalsts).
->
-> - For macOS builds, please see
->   [here](https://github.com/STBoyden/mpalsts/actions/workflows/build-macos.yml).
-> - For Linux builds, please see: [here]().
 
 ![Window Screenshot](docs/assets/window.png)
 
