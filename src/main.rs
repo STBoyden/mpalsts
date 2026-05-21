@@ -185,8 +185,8 @@ impl App {
 
 		let light_sensor_rc = Rc::new(als::get_platform_reader());
 
-		let light_sensor = cx.new(|_| return light_sensor_rc.clone());
-		let current_lumens = cx.new(|_| return SensorOutput::default());
+		let light_sensor = cx.new(|_| light_sensor_rc.clone());
+		let current_lumens = cx.new(|_| SensorOutput::default());
 
 		let local_clone = light_sensor_rc.clone();
 
@@ -213,10 +213,10 @@ impl App {
 
 		let current_appearance = cx.window_appearance();
 
-		let last_threshold_update = cx.new(|_| return None);
+		let last_threshold_update = cx.new(|_| None);
 		let theme_mode = cx.new(|_| match current_appearance {
-			WindowAppearance::Light | WindowAppearance::VibrantLight => return ThemeMode::Light,
-			WindowAppearance::Dark | WindowAppearance::VibrantDark => return ThemeMode::Dark,
+			WindowAppearance::Light | WindowAppearance::VibrantLight => ThemeMode::Light,
+			WindowAppearance::Dark | WindowAppearance::VibrantDark => ThemeMode::Dark,
 		});
 
 		// Observe lumen changes and update theme mode when time and lumen thresholds are exceeded.
@@ -332,10 +332,10 @@ impl App {
 
 		#[cfg(target_os = "linux")]
 		let linux_light_theme_selector_state =
-			cx.new(|cx| return SelectState::new(themes.clone(), None, _window, cx));
+			cx.new(|cx| SelectState::new(themes.clone(), None, _window, cx));
 		#[cfg(target_os = "linux")]
 		let linux_dark_theme_selector_state =
-			cx.new(|cx| return SelectState::new(themes.clone(), None, _window, cx));
+			cx.new(|cx| SelectState::new(themes.clone(), None, _window, cx));
 
 		return Self {
 			persistent_state,
@@ -690,9 +690,9 @@ fn main() {
 						})
 						.detach();
 
-						let view = cx.new(|cx| return App::new(state, window, cx));
+						let view = cx.new(|cx| App::new(state, window, cx));
 
-						return cx.new(|cx| return Root::new(view, window, cx));
+						return cx.new(|cx| Root::new(view, window, cx));
 					})
 					.expect("Failed to open window");
 			})

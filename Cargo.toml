@@ -12,7 +12,7 @@ members = ["crates/als", "crates/theme-switch"]
 
 [lints.clippy]
 needless_return = "allow"
-implicit_return = "warn"
+
 
 [[bin]]
 name = "mpalsts"

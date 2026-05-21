@@ -40,7 +40,7 @@ impl LinuxThemeSwitcher {
 
 		return self
 			.find_light_variant(&current_theme, &installed)
-			.or_else(|| return Some(current_theme));
+			.or_else(|| Some(current_theme));
 	}
 
 	pub fn get_current_dark_theme(&self) -> Option<String> {
@@ -49,7 +49,7 @@ impl LinuxThemeSwitcher {
 
 		return self
 			.find_dark_variant(&current_theme, &installed)
-			.or_else(|| return Some(current_theme));
+			.or_else(|| Some(current_theme));
 	}
 
 	fn current_theme_name(&self) -> Option<String> {
@@ -72,8 +72,8 @@ impl LinuxThemeSwitcher {
 				"org.gnome.desktop.interface",
 				"gtk-theme",
 			])
-			.map(|theme| return theme.trim().trim_matches('\'').to_string())
-			.filter(|theme| return !theme.is_empty());
+			.map(|theme| theme.trim().trim_matches('\'').to_string())
+			.filter(|theme| !theme.is_empty());
 	}
 
 	fn kde_current_theme(&self) -> Option<String> {
@@ -98,8 +98,8 @@ impl LinuxThemeSwitcher {
 					"ColorScheme",
 				]);
 			})
-			.map(|theme| return theme.trim().to_string())
-			.filter(|theme| return !theme.is_empty());
+			.map(|theme| theme.trim().to_string())
+			.filter(|theme| !theme.is_empty());
 	}
 
 	fn run_command<const N: usize>(&self, args: [&str; N]) -> Option<String> {
@@ -130,7 +130,7 @@ impl LinuxThemeSwitcher {
 	fn find_dark_variant(&self, theme: &str, installed: &BTreeSet<String>) -> Option<String> {
 		return self
 			.find_variant(theme, &["-light", "_light", " light", "Light"], installed)
-			.or_else(|| return self.find_variant(theme, &["", " "], installed));
+			.or_else(|| self.find_variant(theme, &["", " "], installed));
 	}
 
 	fn find_variant(
@@ -202,7 +202,7 @@ impl LinuxThemeSwitcher {
 			}
 
 			let path = entry.path();
-			let Some(file_extension) = path.extension().and_then(|value| return value.to_str()) else {
+			let Some(file_extension) = path.extension().and_then(|value| value.to_str()) else {
 				continue;
 			};
 
@@ -210,7 +210,7 @@ impl LinuxThemeSwitcher {
 				continue;
 			}
 
-			if let Some(theme_name) = path.file_stem().and_then(|value| return value.to_str()) {
+			if let Some(theme_name) = path.file_stem().and_then(|value| value.to_str()) {
 				themes.insert(theme_name.to_string());
 			}
 		}
