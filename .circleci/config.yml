@@ -224,7 +224,7 @@ jobs:
 
   build-macos:
     macos:
-      xcode: "26"
+      xcode: "26.5"
 
     resource_class: m4pro.medium
 
