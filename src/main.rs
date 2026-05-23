@@ -346,10 +346,10 @@ impl App {
 
 		#[cfg(target_os = "linux")]
 		let linux_light_theme_selector_state =
-			cx.new(|cx| SelectState::new(themes.clone(), None, _window, cx));
+			cx.new(|cx| SelectState::new(themes.clone(), None, window, cx));
 		#[cfg(target_os = "linux")]
 		let linux_dark_theme_selector_state =
-			cx.new(|cx| SelectState::new(themes.clone(), None, _window, cx));
+			cx.new(|cx| SelectState::new(themes.clone(), None, window, cx));
 
 		return Self {
 			persistent_state,
