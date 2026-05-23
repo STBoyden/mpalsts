@@ -151,6 +151,12 @@ jobs:
             rustup target add "$RUST_TARGET"
 
       - run:
+          name: Get package version
+          command: |
+            version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select (.name | test("mpalsts")) | .version')
+            echo "export PACKAGE_VERSION=$version" >> "$BASH_ENV"
+
+      - run:
           name: Install package tooling
           command: |
             set -eux
@@ -202,7 +208,7 @@ jobs:
             mkdir -p artifacts
 
             find target -type f \( -name "*.deb" -o -name "*.rpm" \) \
-              -exec cp {} artifacts/ \;
+              -exec cp {} "artifacts/mpalsts_${PACKAGE_VERSION}_<< parameters.distro >>_<< parameters.arch >>.<< parameters.package_format >>" \;
 
             ls -R artifacts
 
