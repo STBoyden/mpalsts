@@ -148,7 +148,7 @@ struct App {
 }
 
 impl App {
-	fn new(persistent_state: Entity<AppState>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+	fn new(persistent_state: Entity<AppState>, window: &mut Window, cx: &mut Context<Self>) -> Self {
 		let lumens_slider_state = cx.new(|cx| {
 			return SliderState::new()
 				.default_value(persistent_state.read(cx).lumens_threshold)
@@ -218,6 +218,20 @@ impl App {
 			WindowAppearance::Light | WindowAppearance::VibrantLight => ThemeMode::Light,
 			WindowAppearance::Dark | WindowAppearance::VibrantDark => ThemeMode::Dark,
 		});
+
+		cx.observe_window_appearance(window, |this, window, cx| {
+			let current_appearance = window.appearance();
+			let theme_mode = match current_appearance {
+				WindowAppearance::Light | WindowAppearance::VibrantLight => ThemeMode::Light,
+				WindowAppearance::Dark | WindowAppearance::VibrantDark => ThemeMode::Dark,
+			};
+
+			this.theme_mode.update(cx, |this, cx| {
+				*this = theme_mode;
+				cx.notify();
+			});
+		})
+		.detach();
 
 		// Observe lumen changes and update theme mode when time and lumen thresholds are exceeded.
 		cx.observe(&current_lumens, |this, current_lumens, cx| {
