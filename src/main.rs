@@ -230,6 +230,8 @@ impl App {
 				*this = theme_mode;
 				cx.notify();
 			});
+
+			update_theme(cx, Some(window));
 		})
 		.detach();
 
@@ -574,6 +576,7 @@ impl App {
 
 		return v_flex()
 			.w_full()
+			.gap_2()
 			.child("Linux theme overrides:")
 			.child(
 				h_flex()
@@ -644,12 +647,14 @@ impl Render for App {
 }
 
 fn override_colours(cx: &mut gpui::App) {
-	let theme = Theme::global_mut(cx);
-	theme.accent = theme.blue;
+	Theme::update_global(cx, |theme, _| {
+		theme.accent = theme.blue;
+	});
 }
 
 fn update_theme(cx: &mut gpui::App, window: Option<&mut Window>) {
 	Theme::sync_system_appearance(window, cx);
+	#[cfg(not(target_os = "linux"))]
 	Theme::sync_scrollbar_appearance(cx);
 	override_colours(cx);
 }
@@ -666,9 +671,15 @@ fn main() {
 			update_theme(cx, None);
 			trace!("Initialising window theme, {:#?}", cx.window_appearance());
 
+			let window_size = if cfg!(not(target_os = "linux")) {
+				size(px(600.), px(400.))
+			} else {
+				size(px(600.), px(550.))
+			};
+
 			let window_options = WindowOptions {
 				titlebar: Some(TitleBar::title_bar_options()),
-				window_bounds: Some(WindowBounds::centered(size(px(600.), px(400.)), cx)),
+				window_bounds: Some(WindowBounds::centered(window_size, cx)),
 				window_decorations: Some(WindowDecorations::Client),
 				is_resizable: false,
 				..Default::default()
