@@ -53,7 +53,6 @@ serde = { version = "1.0.228", features = ["derive"] }
 [package.metadata.bundle]
 name = "Multi-platform ALS Theme Switcher"
 identifier = "com.stboyden.mpalsts"
-osx_frameworks = ["/System/Library/PrivateFrameworks/BezelServices.framework"]
 
 [package.metadata.generate-rpm]
 assets = [
