@@ -13,8 +13,6 @@ use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use gpui::{prelude::*, *};
-#[cfg(target_os = "linux")]
-use gpui_component::select::SelectState;
 use gpui_component::{
 	ActiveTheme, Root, Theme, TitleBar,
 	button::{Button, ButtonVariants},
@@ -24,6 +22,8 @@ use gpui_component::{
 	slider::{Slider, SliderEvent, SliderState},
 	v_flex,
 };
+#[cfg(target_os = "linux")]
+use gpui_component::{IndexPath, select::SelectState};
 use log::{error, trace, warn};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
@@ -138,7 +138,7 @@ struct App {
 	seconds_slider_state:  Entity<SliderState>,
 	last_threshold_update: Entity<Option<Instant>>,
 	theme_mode:            Entity<ThemeMode>,
-	theme_switcher:        PlatformThemeSwitcher,
+	theme_switcher:        Entity<PlatformThemeSwitcher>,
 	auto_launcher:         Arc<AutoLaunch>,
 
 	#[cfg(target_os = "linux")]
@@ -319,8 +319,8 @@ impl App {
 
 		cx.observe(&theme_mode, |this, theme_mode, cx| {
 			match theme_mode.read(cx) {
-				ThemeMode::Dark => this.theme_switcher.to_dark(),
-				ThemeMode::Light => this.theme_switcher.to_light(),
+				ThemeMode::Dark => this.theme_switcher.read(cx).to_dark(),
+				ThemeMode::Light => this.theme_switcher.read(cx).to_light(),
 			};
 		})
 		.detach();
@@ -342,16 +342,87 @@ impl App {
 				.expect("could not build auto launcher"),
 		);
 
-		let theme_switcher = theme_switch::get();
+		let theme_switcher = cx.new(|_| theme_switch::get());
+
 		#[cfg(target_os = "linux")]
-		let themes = theme_switcher.get_themes();
+		{
+			theme_switcher.update(cx, |theme_switcher, cx| {
+				let LinuxState {
+					ref light_theme,
+					ref dark_theme,
+				} = persistent_state.read(cx).linux;
+
+				theme_switcher.set_light_theme(light_theme.clone());
+				theme_switcher.set_dark_theme(dark_theme.clone());
+			});
+		}
+
+		#[cfg(target_os = "linux")]
+		let themes = theme_switcher.read(cx).get_themes();
+		#[cfg(target_os = "linux")]
+		let LinuxState {
+			ref light_theme,
+			ref dark_theme,
+		} = persistent_state.read(cx).linux;
+
+		#[cfg(target_os = "linux")]
+		let light_theme_index = light_theme
+			.as_ref()
+			.and_then(|theme| themes.iter().position(|x| x == theme))
+			.map(IndexPath::new);
+		#[cfg(target_os = "linux")]
+		let dark_theme_index = dark_theme
+			.as_ref()
+			.and_then(|theme| themes.iter().position(|x| x == theme))
+			.map(IndexPath::new);
 
 		#[cfg(target_os = "linux")]
 		let linux_light_theme_selector_state =
-			cx.new(|cx| SelectState::new(themes.clone(), None, window, cx));
+			cx.new(|cx| SelectState::new(themes.clone(), light_theme_index, window, cx));
 		#[cfg(target_os = "linux")]
 		let linux_dark_theme_selector_state =
-			cx.new(|cx| SelectState::new(themes.clone(), None, window, cx));
+			cx.new(|cx| SelectState::new(themes.clone(), dark_theme_index, window, cx));
+
+		#[cfg(target_os = "linux")]
+		{
+			use gpui_component::select::SelectEvent;
+
+			cx.subscribe(
+				&linux_light_theme_selector_state,
+				|this, _, event: &SelectEvent<Vec<String>>, cx| match event {
+					SelectEvent::Confirm(value) => {
+						this.persistent_state.update(cx, |state, cx| {
+							state.linux.light_theme = value.clone();
+							cx.notify();
+						});
+
+						this.theme_switcher.update(cx, |theme_switcher, cx| {
+							theme_switcher.set_light_theme(value.clone());
+							cx.notify();
+						});
+					}
+				},
+			)
+			.detach();
+
+			cx.subscribe(
+				&linux_dark_theme_selector_state,
+				|this, _, event: &SelectEvent<Vec<String>>, cx| match event {
+					SelectEvent::Confirm(value) => {
+						this.persistent_state.update(cx, |state, cx| {
+							state.linux.dark_theme = value.clone();
+							cx.notify();
+						});
+
+						this.theme_switcher.update(cx, |theme_switcher, cx| {
+							theme_switcher.set_dark_theme(value.clone());
+							cx.notify();
+						});
+					}
+				},
+			)
+			.detach();
+		}
 
 		return Self {
 			persistent_state,
@@ -698,15 +769,6 @@ fn main() {
 							window.minimize_window();
 							return false;
 						});
-
-						window
-							.observe_window_appearance(|window, cx| {
-								trace!("Window appearance changed, {:#?}", window.appearance());
-
-								update_theme(cx, Some(window));
-								cx.refresh_windows();
-							})
-							.detach();
 
 						cx.observe(&state, |view, cx| {
 							if let Err(e) = view.read(cx).save_config() {

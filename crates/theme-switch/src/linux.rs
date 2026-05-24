@@ -16,6 +16,14 @@ impl LinuxThemeSwitcher {
 		};
 	}
 
+	pub fn set_light_theme(&mut self, theme: Option<String>) {
+		self.light_theme = theme;
+	}
+
+	pub fn set_dark_theme(&mut self, theme: Option<String>) {
+		self.dark_theme = theme;
+	}
+
 	pub fn get_themes(&self) -> Vec<String> {
 		return self.collect_directory_names(self.theme_directories());
 	}
@@ -40,7 +48,7 @@ impl LinuxThemeSwitcher {
 
 		return self
 			.find_light_variant(&current_theme, &installed)
-			.or_else(|| Some(current_theme));
+			.or(Some(current_theme));
 	}
 
 	pub fn get_current_dark_theme(&self) -> Option<String> {
@@ -49,7 +57,7 @@ impl LinuxThemeSwitcher {
 
 		return self
 			.find_dark_variant(&current_theme, &installed)
-			.or_else(|| Some(current_theme));
+			.or(Some(current_theme));
 	}
 
 	fn current_theme_name(&self) -> Option<String> {
