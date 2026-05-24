@@ -23,7 +23,10 @@ use gpui_component::{
 	v_flex,
 };
 #[cfg(target_os = "linux")]
-use gpui_component::{IndexPath, select::SelectState};
+use gpui_component::{
+	IndexPath,
+	select::{SelectEvent, SelectState},
+};
 use log::{error, trace, warn};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
@@ -53,6 +56,7 @@ pub struct AppState {
 pub struct LinuxState {
 	light_theme: Option<String>,
 	dark_theme:  Option<String>,
+	sensor:      Option<String>,
 }
 
 #[cfg(target_os = "linux")]
@@ -61,6 +65,7 @@ impl Default for LinuxState {
 		return Self {
 			light_theme: None,
 			dark_theme:  None,
+			sensor:      None,
 		};
 	}
 }
@@ -142,9 +147,11 @@ struct App {
 	auto_launcher:         Arc<AutoLaunch>,
 
 	#[cfg(target_os = "linux")]
-	linux_light_theme_selector_state: Entity<SelectState<Vec<String>>>,
+	linux_light_theme_selector_state:  Entity<SelectState<Vec<String>>>,
 	#[cfg(target_os = "linux")]
-	linux_dark_theme_selector_state:  Entity<SelectState<Vec<String>>>,
+	linux_dark_theme_selector_state:   Entity<SelectState<Vec<String>>>,
+	#[cfg(target_os = "linux")]
+	linux_light_sensor_selector_state: Entity<SelectState<Vec<String>>>,
 }
 
 impl App {
@@ -350,6 +357,7 @@ impl App {
 				let LinuxState {
 					ref light_theme,
 					ref dark_theme,
+					..
 				} = persistent_state.read(cx).linux;
 
 				theme_switcher.set_light_theme(light_theme.clone());
@@ -363,6 +371,7 @@ impl App {
 		let LinuxState {
 			ref light_theme,
 			ref dark_theme,
+			..
 		} = persistent_state.read(cx).linux;
 
 		#[cfg(target_os = "linux")]
@@ -424,6 +433,54 @@ impl App {
 			.detach();
 		}
 
+		#[cfg(target_os = "linux")]
+		light_sensor.update(cx, |this, cx| {
+			use std::path::PathBuf;
+
+			let sensor = persistent_state
+				.read(cx)
+				.linux
+				.sensor
+				.as_ref()
+				.map(PathBuf::from);
+
+			this.borrow_mut().set_device_file(sensor);
+			cx.notify();
+		});
+
+		#[cfg(target_os = "linux")]
+		let sensors = light_sensor.read(cx).borrow().get_illumination_files();
+
+		#[cfg(target_os = "linux")]
+		let current_light_sensor_index = light_sensor
+			.read(cx)
+			.borrow()
+			.get_current_device_file()
+			.and_then(|file| {
+				sensors
+					.iter()
+					.position(|x| file.to_string_lossy().into_owned() == *x)
+			})
+			.map(IndexPath::new);
+
+		#[cfg(target_os = "linux")]
+		let linux_light_sensor_selector_state =
+			cx.new(|cx| SelectState::new(sensors, current_light_sensor_index, window, cx));
+
+		#[cfg(target_os = "linux")]
+		cx.subscribe(
+			&linux_light_sensor_selector_state,
+			|this, _, event: &SelectEvent<Vec<String>>, cx| match event {
+				SelectEvent::Confirm(value) => {
+					this.persistent_state.update(cx, |state, cx| {
+						state.linux.sensor = value.to_owned();
+						cx.notify();
+					});
+				}
+			},
+		)
+		.detach();
+
 		return Self {
 			persistent_state,
 			light_sensor,
@@ -440,6 +497,8 @@ impl App {
 			linux_light_theme_selector_state,
 			#[cfg(target_os = "linux")]
 			linux_dark_theme_selector_state,
+			#[cfg(target_os = "linux")]
+			linux_light_sensor_selector_state,
 		};
 	}
 
@@ -636,12 +695,13 @@ impl App {
 	}
 
 	#[cfg(target_os = "linux")]
-	fn linux_theme_switcher(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
+	fn linux_settings(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
 		use gpui_component::select::Select;
 
 		let App {
 			linux_light_theme_selector_state,
 			linux_dark_theme_selector_state,
+			linux_light_sensor_selector_state,
 			..
 		} = self;
 
@@ -663,12 +723,19 @@ impl App {
 							.child(Select::new(linux_dark_theme_selector_state)),
 					),
 			)
+			.child(
+				h_flex()
+					.justify_center()
+					.gap_2()
+					.child("Light sensor:")
+					.child(Select::new(linux_light_sensor_selector_state)),
+			)
 			.child(Separator::horizontal().w_full());
 	}
 
 	fn platform_specific(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
 		#[cfg(target_os = "linux")]
-		return self.linux_theme_switcher(_cx);
+		return self.linux_settings(_cx);
 		#[cfg(not(target_os = "linux"))]
 		return div().into_any();
 	}
@@ -745,7 +812,7 @@ fn main() {
 			let window_size = if cfg!(not(target_os = "linux")) {
 				size(px(600.), px(400.))
 			} else {
-				size(px(600.), px(550.))
+				size(px(600.), px(600.))
 			};
 
 			let window_options = WindowOptions {

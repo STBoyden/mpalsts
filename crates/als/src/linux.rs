@@ -55,6 +55,52 @@ impl LinuxSensorReader {
 		});
 	}
 
+	pub fn get_current_device_file(&self) -> Option<PathBuf> {
+		self.device_file.borrow().clone()
+	}
+
+	pub fn get_illumination_files(&self) -> Vec<String> {
+		let mut files = self
+			.device_file
+			.borrow()
+			.clone()
+			.map(|p| vec![p.to_string_lossy().into_owned()])
+			.unwrap_or_default();
+
+		files.extend(
+			self
+				.backup_files
+				.iter()
+				.map(|p| p.to_string_lossy().into_owned())
+				.collect::<Vec<_>>(),
+		);
+
+		return files;
+	}
+
+	pub fn set_device_file(&mut self, device_file: Option<PathBuf>) {
+		let Some(device_file) = device_file else {
+			return;
+		};
+
+		if matches!(
+			self.device_file.borrow().clone(),
+			Some(d) if d == device_file
+		) {
+			return;
+		}
+
+		let current = self.device_file.clone().into_inner();
+
+		*self.device_file.borrow_mut() = Some(device_file);
+
+		let Some(current) = current else {
+			return;
+		};
+
+		self.backup_files.push(current);
+	}
+
 	fn take_reading(&mut self) -> Result<u32> {
 		if let Some(ref device_file) = *self.device_file.borrow() {
 			let fd = File::open(device_file).map_err(LinuxALSError::Io)?;
