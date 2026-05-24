@@ -43,6 +43,7 @@ jobs:
                   ca-certificates \
                   curl \
                   git \
+                  jq \
                   build-essential \
                   pkg-config \
                   clang \
@@ -65,6 +66,7 @@ jobs:
                   ca-certificates \
                   curl \
                   git \
+                  jq \
                   gcc \
                   gcc-c++ \
                   make \
