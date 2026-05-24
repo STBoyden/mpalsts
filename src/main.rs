@@ -701,7 +701,7 @@ impl App {
 	}
 
 	#[cfg(target_os = "linux")]
-	fn linux_settings(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
+	fn linux_settings(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
 		use gpui_component::select::Select;
 
 		let App {
@@ -714,17 +714,20 @@ impl App {
 		return v_flex()
 			.w_full()
 			.gap_2()
-			.child("Linux theme overrides:")
 			.child(
 				h_flex()
 					.justify_between()
 					.child(
-						v_flex()
+						h_flex()
+							.gap_2()
+							.text_color(cx.theme().muted_foreground)
 							.child("Light theme:")
 							.child(Select::new(linux_light_theme_selector_state)),
 					)
 					.child(
-						v_flex()
+						h_flex()
+							.gap_2()
+							.text_color(cx.theme().muted_foreground)
 							.child("Dark theme:")
 							.child(Select::new(linux_dark_theme_selector_state)),
 					),
@@ -733,6 +736,7 @@ impl App {
 				h_flex()
 					.justify_center()
 					.gap_2()
+					.text_color(cx.theme().muted_foreground)
 					.child("Light sensor:")
 					.child(Select::new(linux_light_sensor_selector_state)),
 			)
@@ -758,7 +762,13 @@ impl App {
 				.content_center()
 				.gap_4()
 				.child(self.toggles(cx))
-				.child(Separator::horizontal().w_full())
+				.child({
+					if cfg!(target_os = "linux") {
+						Separator::horizontal().w_full().label("Linux settings")
+					} else {
+						Separator::horizontal().w_full()
+					}
+				})
 				.child(self.platform_specific(cx))
 				.child(self.lumens_slider(cx))
 				.child(self.seconds_slider(cx))
