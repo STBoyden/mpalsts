@@ -127,7 +127,7 @@ impl AppState {
 	}
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ThemeMode {
 	Light,
 	Dark,
@@ -234,8 +234,10 @@ impl App {
 			};
 
 			this.theme_mode.update(cx, |this, cx| {
-				*this = theme_mode;
-				cx.notify();
+				if *this != theme_mode {
+					*this = theme_mode;
+					cx.notify();
+				}
 			});
 
 			update_theme(cx, Some(window));
@@ -325,6 +327,10 @@ impl App {
 		.detach();
 
 		cx.observe(&theme_mode, |this, theme_mode, cx| {
+			if !this.persistent_state.read(cx).enable_theme_switching {
+				return;
+			}
+
 			match theme_mode.read(cx) {
 				ThemeMode::Dark => this.theme_switcher.read(cx).to_dark(),
 				ThemeMode::Light => this.theme_switcher.read(cx).to_light(),

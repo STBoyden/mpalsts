@@ -2,6 +2,12 @@ use std::{collections::BTreeSet, env, fs, path::PathBuf, process::Command};
 
 use crate::ThemeSwitcher;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DesktopEnvironment {
+	Gnome,
+	Kde,
+}
+
 #[derive(Debug, Clone)]
 pub struct LinuxThemeSwitcher {
 	light_theme: Option<String>,
@@ -10,18 +16,27 @@ pub struct LinuxThemeSwitcher {
 
 impl LinuxThemeSwitcher {
 	pub(crate) fn new() -> Self {
-		return Self {
+		let mut switcher = Self {
 			light_theme: None,
 			dark_theme:  None,
 		};
+
+		switcher.light_theme = switcher.get_current_light_theme();
+		switcher.dark_theme = switcher.get_current_dark_theme();
+
+		return switcher;
 	}
 
 	pub fn set_light_theme(&mut self, theme: Option<String>) {
-		self.light_theme = theme;
+		if theme.is_some() {
+			self.light_theme = theme;
+		}
 	}
 
 	pub fn set_dark_theme(&mut self, theme: Option<String>) {
-		self.dark_theme = theme;
+		if theme.is_some() {
+			self.dark_theme = theme;
+		}
 	}
 
 	pub fn get_themes(&self) -> Vec<String> {
@@ -61,12 +76,42 @@ impl LinuxThemeSwitcher {
 	}
 
 	fn current_theme_name(&self) -> Option<String> {
-		if let Some(theme) = self.gnome_current_theme() {
-			return Some(theme);
+		match Self::desktop_environment() {
+			Some(DesktopEnvironment::Gnome) => {
+				return self
+					.gnome_current_theme()
+					.or_else(|| self.kde_current_theme());
+			}
+			Some(DesktopEnvironment::Kde) => {
+				return self
+					.kde_current_theme()
+					.or_else(|| self.gnome_current_theme());
+			}
+			None => {}
 		}
 
-		if let Some(theme) = self.kde_current_theme() {
-			return Some(theme);
+		return self
+			.gnome_current_theme()
+			.or_else(|| self.kde_current_theme());
+	}
+
+	fn desktop_environment() -> Option<DesktopEnvironment> {
+		let values = [
+			env::var("XDG_CURRENT_DESKTOP").ok(),
+			env::var("XDG_SESSION_DESKTOP").ok(),
+			env::var("DESKTOP_SESSION").ok(),
+		];
+
+		for value in values.into_iter().flatten() {
+			let value = value.to_lowercase();
+
+			if value.contains("gnome") {
+				return Some(DesktopEnvironment::Gnome);
+			}
+
+			if value.contains("kde") || value.contains("plasma") {
+				return Some(DesktopEnvironment::Kde);
+			}
 		}
 
 		return None;
@@ -113,8 +158,107 @@ impl LinuxThemeSwitcher {
 	fn run_command<const N: usize>(&self, args: [&str; N]) -> Option<String> {
 		let (program, command_args) = args.split_first()?;
 		let output = Command::new(program).args(command_args).output().ok()?;
+		if !output.status.success() {
+			return None;
+		}
 		let stdout = String::from_utf8(output.stdout).ok()?;
 		return Some(stdout);
+	}
+
+	fn run_command_status<const N: usize>(&self, args: [&str; N]) -> bool {
+		let Some((program, command_args)) = args.split_first() else {
+			return false;
+		};
+
+		return Command::new(program)
+			.args(command_args)
+			.status()
+			.map(|status| status.success())
+			.unwrap_or(false);
+	}
+
+	fn switch_to_theme(&self, theme: Option<&String>, dark: bool) {
+		let Some(theme) = theme else {
+			return;
+		};
+
+		match Self::desktop_environment() {
+			Some(DesktopEnvironment::Gnome) => {
+				if self.gnome_current_theme().as_deref() != Some(theme.as_str()) {
+					self.switch_gnome_theme(theme, dark);
+				}
+			}
+			Some(DesktopEnvironment::Kde) => {
+				if self.kde_current_theme().as_deref() != Some(theme.as_str()) {
+					self.switch_kde_theme(theme);
+				}
+			}
+			None => {
+				if self.gnome_current_theme().as_deref() != Some(theme.as_str()) {
+					self.switch_gnome_theme(theme, dark);
+				}
+
+				if self.kde_current_theme().as_deref() != Some(theme.as_str()) {
+					self.switch_kde_theme(theme);
+				}
+			}
+		}
+	}
+
+	fn switch_gnome_theme(&self, theme: &str, dark: bool) {
+		let color_scheme = if dark { "prefer-dark" } else { "prefer-light" };
+
+		_ = self.run_command_status([
+			"gsettings",
+			"set",
+			"org.gnome.desktop.interface",
+			"gtk-theme",
+			theme,
+		]);
+		_ = self.run_command_status([
+			"gsettings",
+			"set",
+			"org.gnome.desktop.interface",
+			"color-scheme",
+			color_scheme,
+		]);
+	}
+
+	fn switch_kde_theme(&self, theme: &str) {
+		let theme = match theme {
+			"Breeze-Dark" => "BreezeDark",
+			"Breeze" => "BreezeLight",
+			_ => theme,
+		};
+
+		let theme = theme.replace("-", "");
+		if self.run_command_status(["plasma-apply-colorscheme", &theme]) {
+			return;
+		}
+
+		if self.run_command_status(["lookandfeeltool", "-a", &theme]) {
+			return;
+		}
+
+		_ = self.run_command_status([
+			"kwriteconfig6",
+			"--file",
+			"kdeglobals",
+			"--group",
+			"General",
+			"--key",
+			"ColorScheme",
+			&theme,
+		]) || self.run_command_status([
+			"kwriteconfig5",
+			"--file",
+			"kdeglobals",
+			"--group",
+			"General",
+			"--key",
+			"ColorScheme",
+			&theme,
+		]);
 	}
 
 	fn installed_themes(&self) -> BTreeSet<String> {
@@ -269,9 +413,13 @@ impl LinuxThemeSwitcher {
 }
 
 impl ThemeSwitcher for LinuxThemeSwitcher {
-	fn to_light(&self) {}
+	fn to_light(&self) {
+		self.switch_to_theme(self.light_theme.as_ref(), false);
+	}
 
-	fn to_dark(&self) {}
+	fn to_dark(&self) {
+		self.switch_to_theme(self.dark_theme.as_ref(), true);
+	}
 }
 
 impl Default for LinuxThemeSwitcher {
