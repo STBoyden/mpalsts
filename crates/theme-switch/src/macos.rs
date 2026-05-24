@@ -1,3 +1,4 @@
+use log::error;
 use osakit::{Language, Script};
 
 use crate::ThemeSwitcher;
@@ -18,6 +19,15 @@ impl MacosThemeSwitcher {
 			Language::AppleScript,
 			r#"tell application "System Events" to tell appearance preferences to set dark mode to false"#,
 		);
+
+		// should force a permission check
+		Script::new_from_source(
+			Language::AppleScript,
+			r#"tell application "System Events" to tell appearance preferences to get dark mode"#,
+		)
+		.execute()
+		.inspect_err(|err| error!("couldn't force permission check: {err}"))
+		.ok();
 
 		dark_mode_script
 			.compile()
