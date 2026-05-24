@@ -25,6 +25,29 @@ have plans to install it for the time being.
 - A device with an ambient light sensor: Framework 13/16, MacBook Pro, etc.
 - A device running on one of the above supported platforms.
 
+## Installation
+
+Nightly releases are availble on the releases page
+[here](https://codeberg.org/STBoyden/mpalsts/releases).
+
+### First-time run on MacOS
+
+The app is not yet signed with a paid Apple developer ID, as such you will
+probably get an error when you try and run the app for the first time, something
+like this:
+
+![Quarantine error](docs/assets/macos-quarantine.png)
+
+To fix this, open `Terminal.app` (⌘+Space > type "Terminal" > press Enter) and
+run the following command:
+
+```bash
+sudo xattr -d com.apple.quarantine /Applications/Multi-platform ALS Theme Switcher.app # make sure to press enter after entering this
+```
+
+You may need to enter your password when prompted in your terminal - which you
+confirm with the enter key.
+
 ## Acknowledgements
 
 The idea for this project came from wanting to port
