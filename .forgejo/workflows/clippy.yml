@@ -14,7 +14,9 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          apk add --no-cache curl ca-certificates nodejs musl-dev build-base git
+          apk add --no-cache curl ca-certificates nodejs \
+            musl-dev build-base git pkgconfig wayland-dev \
+            fontconfig-dev cmake musl-utils
           update-ca-certificates
 
           echo "Processors: $(nproc)"
