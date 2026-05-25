@@ -1,6 +1,10 @@
 # Multiplatform Ambient Light Sensor Theme Switcher
 
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/STBoyden/mpalsts/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/STBoyden/mpalsts/tree/main)
+[Builds: ![CircleCI](https://dl.circleci.com/status-badge/img/gh/STBoyden/mpalsts/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/STBoyden/mpalsts/tree/main)
+[![Clippy](https://codeberg.org/STBoyden/mpalsts/badges/workflows/clippy.yml/badge.svg)](https://codeberg.org/STBoyden/mpalsts/actions/workflows/clippy.yml)
+[![Releases](https://codeberg.org/STBoyden/mpalsts/badges/release.svg)](https://codeberg.org/STBoyden/mpalsts/releases)
+
+---
 
 > [!NOTE]
 > If you're viewing this on GitHub, please note that this is a mirror for CI/CD
