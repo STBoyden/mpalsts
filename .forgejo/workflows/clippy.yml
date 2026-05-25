@@ -16,7 +16,7 @@ jobs:
         run: |
           apk add --no-cache curl ca-certificates nodejs \
             musl-dev build-base git pkgconfig wayland-dev \
-            fontconfig-dev cmake musl-utils
+            fontconfig-dev cmake musl-utils tar
           update-ca-certificates
 
           echo "Processors: $(nproc)"
