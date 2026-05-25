@@ -14,8 +14,10 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          apk add --no-cache curl ca-certificates nodejs
+          apk add --no-cache curl ca-certificates nodejs musl-dev git
           update-ca-certificates
+
+          echo "Processors: $(nproc)"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,11 +38,13 @@ jobs:
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+          if ! command -v rustup; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+          fi
 
       - name: Install Rust toolchain
         run: rustup show
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy -j $(nproc) --workspace --all-targets --all-features -- -D warnings
