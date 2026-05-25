@@ -271,7 +271,6 @@ impl App {
 				"lumens: {lumens}, lumens_threshold: {lumens_threshold}, seconds_threshold: {seconds_threshold}, seconds_threshold_elapsed: {seconds_threshold_elapsed:?}, has_seconds_threshold_elapsed: {has_seconds_threshold_elapsed}"
 			);
 
-
 			match this.theme_mode.read(cx) {
 				ThemeMode::Dark if lumens > lumens_threshold && has_seconds_threshold_elapsed => {
 					this.theme_mode.update(cx, |mode, cx| {

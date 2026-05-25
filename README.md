@@ -42,7 +42,8 @@ To fix this, open `Terminal.app` (⌘+Space > type "Terminal" > press Enter) and
 run the following command:
 
 ```bash
-sudo xattr -d com.apple.quarantine /Applications/Multi-platform ALS Theme Switcher.app # make sure to press enter after entering this
+ # make sure to press enter after entering this
+sudo xattr -d com.apple.quarantine "/Applications/Multi-platform ALS Theme Switcher.app"
 ```
 
 You may need to enter your password when prompted in your terminal - which you
