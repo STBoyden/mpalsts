@@ -1,4 +1,9 @@
-use std::{collections::BTreeSet, env, fs, path::PathBuf, process::Command};
+use std::{
+	collections::BTreeSet,
+	env, fs,
+	path::PathBuf,
+	process::{Command, Stdio},
+};
 
 use crate::ThemeSwitcher;
 
@@ -157,7 +162,12 @@ impl LinuxThemeSwitcher {
 
 	fn run_command<const N: usize>(&self, args: [&str; N]) -> Option<String> {
 		let (program, command_args) = args.split_first()?;
-		let output = Command::new(program).args(command_args).output().ok()?;
+		let output = Command::new(program)
+			.args(command_args)
+			.stdout(Stdio::piped())
+			.stderr(Stdio::piped())
+			.output()
+			.ok()?;
 		if !output.status.success() {
 			return None;
 		}
@@ -172,6 +182,8 @@ impl LinuxThemeSwitcher {
 
 		return Command::new(program)
 			.args(command_args)
+			.stdout(Stdio::piped())
+			.stderr(Stdio::piped())
 			.status()
 			.map(|status| status.success())
 			.unwrap_or(false);
