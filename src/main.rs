@@ -9,7 +9,9 @@ use std::{
 
 use als::{LightSensor, SensorOutput};
 use anyhow::anyhow;
-use auto_launch::{AutoLaunch, AutoLaunchBuilder};
+use auto_launch::{
+	AutoLaunch, AutoLaunchBuilder, LinuxLaunchMode, MacOSLaunchMode, WindowsEnableMode,
+};
 use directories::ProjectDirs;
 use futures::StreamExt;
 use gpui::{prelude::*, *};
@@ -344,13 +346,12 @@ impl App {
 				.set_app_path(
 					env::current_exe()
 						.expect("could not get path of current executable")
-						.as_os_str()
-						.to_str()
-						.expect("could not get path of current executable"),
+						.to_string_lossy()
+						.as_ref(),
 				)
-				.set_macos_launch_mode(auto_launch::MacOSLaunchMode::SMAppService)
-				.set_linux_launch_mode(auto_launch::LinuxLaunchMode::XdgAutostart)
-				.set_windows_enable_mode(auto_launch::WindowsEnableMode::CurrentUser)
+				.set_macos_launch_mode(MacOSLaunchMode::SMAppService)
+				.set_linux_launch_mode(LinuxLaunchMode::XdgAutostart)
+				.set_windows_enable_mode(WindowsEnableMode::CurrentUser)
 				.build()
 				.expect("could not build auto launcher"),
 		);
@@ -513,9 +514,11 @@ impl App {
 			persistent_state: state,
 			..
 		} = self;
-
-		let enable_theme_switching = state.read(cx).enable_theme_switching;
-		let enable_autostart = state.read(cx).enable_autostart;
+		let AppState {
+			enable_theme_switching,
+			enable_autostart,
+			..
+		} = state.read(cx);
 
 		return v_flex()
 			.gap_2()
@@ -523,7 +526,7 @@ impl App {
 				Checkbox::new("autostart")
 					.cursor_pointer()
 					.label("Start at login")
-					.checked(enable_autostart)
+					.checked(*enable_autostart)
 					.on_click(cx.listener(
 						|App {
 						   persistent_state: state,
@@ -555,7 +558,7 @@ impl App {
 				Checkbox::new("enable_theme_switching")
 					.cursor_pointer()
 					.label("Enable theme switching")
-					.checked(enable_theme_switching)
+					.checked(*enable_theme_switching)
 					.on_click(cx.listener(
 						|App {
 						   persistent_state: state,
@@ -788,14 +791,20 @@ impl Render for App {
 	fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
 		return v_flex()
 			.size_full()
-			.child(
-				TitleBar::new().child(
-					h_flex()
-						.w_full()
-						.justify_center()
-						.child("Multiplatform Ambient Light Sensor Theme Switcher"),
-				),
-			)
+			.child({
+				if cfg!(target_os = "linux") {
+					div().into_any_element()
+				} else {
+					TitleBar::new()
+						.child(
+							h_flex()
+								.w_full()
+								.justify_center()
+								.child("Multiplatform Ambient Light Sensor Theme Switcher"),
+						)
+						.into_any_element()
+				}
+			})
 			.child(self.body(cx));
 	}
 }
@@ -828,15 +837,24 @@ fn main() {
 			let window_size = if cfg!(not(target_os = "linux")) {
 				size(px(600.), px(400.))
 			} else {
-				size(px(600.), px(600.))
+				size(px(600.), px(500.))
 			};
 
-			let window_options = WindowOptions {
-				titlebar: Some(TitleBar::title_bar_options()),
-				window_bounds: Some(WindowBounds::centered(window_size, cx)),
-				window_decorations: Some(WindowDecorations::Client),
-				is_resizable: false,
-				..Default::default()
+			let window_options = if cfg!(target_os = "linux") {
+				WindowOptions {
+					window_bounds: Some(WindowBounds::centered(window_size, cx)),
+					window_decorations: Some(WindowDecorations::Server),
+					is_resizable: false,
+					..Default::default()
+				}
+			} else {
+				WindowOptions {
+					titlebar: Some(TitleBar::title_bar_options()),
+					window_bounds: Some(WindowBounds::centered(window_size, cx)),
+					window_decorations: Some(WindowDecorations::Client),
+					is_resizable: false,
+					..Default::default()
+				}
 			};
 
 			let state = cx.new(|_| {
