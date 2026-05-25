@@ -42,12 +42,15 @@ To fix this, open `Terminal.app` (⌘+Space > type "Terminal" > press Enter) and
 run the following command:
 
 ```bash
- # make sure to press enter after entering this
+# make sure to press enter after entering this
 sudo xattr -d com.apple.quarantine "/Applications/Multi-platform ALS Theme Switcher.app"
 ```
 
 You may need to enter your password when prompted in your terminal - which you
 confirm with the enter key.
+
+After you've followed these steps, you should be able to re-run the app without
+the error showing up.
 
 ## Acknowledgements
 
