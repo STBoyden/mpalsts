@@ -355,6 +355,10 @@ jobs:
               \( -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" \) \
               | while read -r f; do
 
+                  if [[ $f == ".",* ]]; then
+                    continue
+                  fi
+
                   fj -H codeberg.org release asset create \
                     "$RELEASE" \
                     "$f" \
