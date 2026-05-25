@@ -365,6 +365,8 @@ jobs:
 
 workflows:
   build:
+    when:
+      equal: [main, << pipeline.git.branch >>]
     jobs:
       - build-linux:
           name: build-linux-debian-x86_64
