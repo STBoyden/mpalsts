@@ -12,6 +12,11 @@ jobs:
       image: alpine:latest
 
     steps:
+      - name: Install dependencies
+        run: |
+          apk add --no-cache curl ca-certificates nodejs
+          update-ca-certificates
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
