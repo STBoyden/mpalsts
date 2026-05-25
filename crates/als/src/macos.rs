@@ -3,7 +3,10 @@
 //! Main functionality has been ported from
 //! [DarkModeBuddy's](https://github.com/insidegui/DarkModeBuddy) Objective-C code, which is
 //! liscensed under BSD 2-Clause.
-use std::cell::{RefCell, RefMut};
+use std::{
+	cell::{RefCell, RefMut},
+	fmt,
+};
 
 use objc2::rc::Retained;
 use objc2_io_kit::{IOHIDEventStruct, IOHIDServiceClient};
@@ -32,8 +35,12 @@ unsafe extern "C" {
 	fn IOHIDEventGetFloatValue(r#ref: *mut IOHIDEventStruct, field: i32) -> f64;
 }
 
-fn to_event_field(field: i32) -> i32 {
-	return field << 16;
+fn to_event_field<T>(field: T) -> i32
+where
+	T: TryInto<i32>,
+	T::Error: fmt::Debug,
+{
+	return field.try_into().expect("cannot fit field value inside i32") << 16;
 }
 
 #[derive(Error, Debug)]
@@ -95,7 +102,7 @@ impl MacOSSensorReader {
 
 		if let Some(event_ptr) = event_ptr {
 			let value =
-				unsafe { IOHIDEventGetFloatValue(event_ptr, to_event_field(kAmbientLightSensorEvent as i32)) };
+				unsafe { IOHIDEventGetFloatValue(event_ptr, to_event_field(kAmbientLightSensorEvent)) };
 
 			return Ok(value);
 		}
