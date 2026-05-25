@@ -7,7 +7,9 @@ on:
 jobs:
   clippy:
     name: cargo clippy
-    runs-on: ubuntu-latest-arm
+    runs-on: docker-arm
+    container:
+      image: alpine:latest
 
     steps:
       - name: Checkout repository
