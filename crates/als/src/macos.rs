@@ -11,7 +11,11 @@ use thiserror::Error;
 
 use crate::{LightSensor, SensorOutput, error::ALSError};
 
-const K_AMBIENT_LIGHT_SENSOR_EVENT: i64 = 12;
+#[allow(
+	non_upper_case_globals,
+	reason = "constant name matches HID event field name and general Darwin constant naming convention"
+)]
+const kAmbientLightSensorEvent: i64 = 12;
 
 #[link(name = "BezelServices", kind = "framework")]
 unsafe extern "C" {
@@ -66,7 +70,7 @@ impl MacOSSensorReader {
 			};
 
 			let event_ptr =
-				unsafe { IOHIDServiceClientCopyEvent(client_ptr, K_AMBIENT_LIGHT_SENSOR_EVENT, 0, 0) };
+				unsafe { IOHIDServiceClientCopyEvent(client_ptr, kAmbientLightSensorEvent, 0, 0) };
 			if event_ptr.is_null() {
 				return None;
 			}
@@ -90,12 +94,8 @@ impl MacOSSensorReader {
 		let event_ptr = self.copy_hid_event();
 
 		if let Some(event_ptr) = event_ptr {
-			let value = unsafe {
-				IOHIDEventGetFloatValue(
-					event_ptr,
-					to_event_field(K_AMBIENT_LIGHT_SENSOR_EVENT as i32),
-				)
-			};
+			let value =
+				unsafe { IOHIDEventGetFloatValue(event_ptr, to_event_field(kAmbientLightSensorEvent as i32)) };
 
 			return Ok(value);
 		}
