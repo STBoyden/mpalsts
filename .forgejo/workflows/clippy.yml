@@ -7,7 +7,7 @@ on:
 jobs:
   clippy:
     name: cargo clippy
-    runs-on: [docker-arm, codeberg-medium]
+    runs-on: docker-arm
     container:
       image: alpine:latest
 
