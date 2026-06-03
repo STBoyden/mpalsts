@@ -1,0 +1,13 @@
+[package]
+name = "mpalsts_shared"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+ron.workspace = true
+thiserror.workspace = true
+directories.workspace = true

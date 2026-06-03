@@ -1,22 +1,19 @@
 [package]
-name = "als"
-version = "0.1.0"
-edition = "2024"
+name = "mpalsts_sensors"
+version.workspace = true
+edition.workspace = true
 
-[lints.rust]
-async_fn_in_trait = "allow"
-
-[lints.clippy]
-needless_return = "allow"
-
+[lints]
+workspace = true
 
 [dependencies]
 async-stream = "0.3.6"
-env_logger.workspace = true
 futures-time = "3.1.0"
+thiserror = "2.0.18"
+
+env_logger.workspace = true
 futures.workspace = true
 log.workspace = true
-thiserror = "2.0.18"
 
 [dev-dependencies]
 smol = "2.0.2"

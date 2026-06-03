@@ -16,14 +16,14 @@ enum DesktopEnvironment {
 #[derive(Debug, Clone)]
 pub struct LinuxThemeSwitcher {
 	light_theme: Option<String>,
-	dark_theme:  Option<String>,
+	dark_theme: Option<String>,
 }
 
 impl LinuxThemeSwitcher {
 	pub(crate) fn new() -> Self {
 		let mut switcher = Self {
 			light_theme: None,
-			dark_theme:  None,
+			dark_theme: None,
 		};
 
 		switcher.light_theme = switcher.get_current_light_theme();

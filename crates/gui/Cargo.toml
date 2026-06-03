@@ -1,0 +1,25 @@
+[package]
+name = "mpalsts_gui"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mpalsts_shared.path = "../shared"
+mpalsts_theme_switch.path = "../theme-switch"
+mpalsts_sensors.path = "../als"
+
+anyhow.workspace = true
+auto-launch.workspace = true
+directories.workspace = true
+futures.workspace = true
+ron.workspace = true
+log.workspace = true
+serde.workspace = true
+
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "wayland", "x11"] }

@@ -5,7 +5,7 @@ use crate::ThemeSwitcher;
 
 #[derive(Debug)]
 pub struct MacosThemeSwitcher {
-	dark_mode_script:  Script,
+	dark_mode_script: Script,
 	light_mode_script: Script,
 }
 

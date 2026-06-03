@@ -52,7 +52,7 @@ pub enum MacOSALSError {
 type Result<T> = std::result::Result<T, MacOSALSError>;
 
 pub struct MacOSSensorReader {
-	client:           Option<Retained<IOHIDServiceClient>>,
+	client: Option<Retained<IOHIDServiceClient>>,
 	#[cfg(test)]
 	pub(crate) _test: i32,
 }
@@ -60,9 +60,9 @@ pub struct MacOSSensorReader {
 impl MacOSSensorReader {
 	pub fn new() -> RefCell<Self> {
 		return RefCell::new(Self {
-			client:             None,
+			client: None,
 			#[cfg(test)]
-			_test:              0,
+			_test: 0,
 		});
 	}
 
