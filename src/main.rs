@@ -1,3 +1,5 @@
-fn main() {
-	mpalsts_cli::main();
+use mpalsts_cli::CliError;
+
+fn main() -> Result<(), CliError> {
+	return mpalsts_cli::main();
 }

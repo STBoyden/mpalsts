@@ -24,7 +24,6 @@ use gpui_component::{
 	IndexPath,
 	select::{SelectEvent, SelectState},
 };
-use log::{error, trace, warn};
 use mpalsts_sensors::{LightSensor, SensorOutput};
 #[cfg(target_os = "linux")]
 use mpalsts_shared::LinuxState;
@@ -33,6 +32,7 @@ use mpalsts_shared::{
 	MAX_SECONDS_THRESHOLD, MIN_LUMENS_THRESHOLD, MIN_SECONDS_THRESHOLD, ThemeMode,
 };
 use mpalsts_theme_switch::{PlatformThemeSwitcher, ThemeSwitcher};
+use tracing::{error, trace, warn};
 
 #[derive(Debug)]
 struct App {

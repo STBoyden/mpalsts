@@ -1,13 +1,42 @@
 use clap::{Arg, ArgAction, Command};
-use log::trace;
+use dotenv::dotenv;
 #[cfg(feature = "include_gui")]
-use mpalsts_gui::run as gui_run;
+use mpalsts_gui::run as _gui_run;
+use thiserror::Error;
+use tracing::trace;
 
-fn daemon_run() {
+use crate::runtime::{RuntimeMode, runtime};
+
+mod runtime;
+
+fn daemon_run() -> Result<(), CliError> {
 	trace!("Running in daemon mode");
+
+	runtime(Some(RuntimeMode::Daemon))?;
+	return Ok(());
 }
 
-pub fn main() {
+#[cfg(feature = "include_gui")]
+fn gui_run() -> Result<(), CliError> {
+	trace!("Running in GUI mode");
+
+	_gui_run();
+	return Ok(());
+}
+
+#[derive(Debug, Error)]
+pub enum CliError {
+	#[error("runtime error: {0}")]
+	RuntimeError(#[from] runtime::RuntimeError),
+
+	#[error("unexpected error: {0}")]
+	UnexpectedError(#[from] anyhow::Error),
+}
+
+pub fn main() -> Result<(), CliError> {
+	dotenv().ok();
+	tracing_subscriber::fmt::try_init().map_err(|err| anyhow::anyhow!(err))?;
+
 	let daemon_arg = Arg::new("daemon")
 		.short('d')
 		.long("daemon")
@@ -36,9 +65,9 @@ pub fn main() {
 	#[cfg(feature = "include_gui")]
 	{
 		if run_as_daemon {
-			daemon_run();
+			return daemon_run();
 		} else {
-			gui_run();
+			return gui_run();
 		}
 	}
 	#[cfg(not(feature = "include_gui"))]
@@ -46,9 +75,11 @@ pub fn main() {
 		use std::process::exit;
 
 		if run_as_daemon {
-			daemon_run();
+			return daemon_run();
 		} else {
-			exit(1);
+			use anyhow::anyhow;
+
+			return Err(anyhow!("Somehow got to an unreachable code path"));
 		}
 	}
 }

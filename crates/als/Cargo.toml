@@ -11,9 +11,10 @@ async-stream = "0.3.6"
 futures-time = "3.1.0"
 thiserror = "2.0.18"
 
-env_logger.workspace = true
+dotenv.workspace = true
 futures.workspace = true
-log.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 smol = "2.0.2"

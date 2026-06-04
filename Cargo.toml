@@ -11,12 +11,15 @@ members = ["crates/als", "crates/cli", "crates/gui", "crates/shared", "crates/th
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [workspace.lints.clippy]
 needless_return = "allow"
 
 [workspace.lints.rust]
 async_fn_in_trait = "allow"
-unused_imports = "forbid"
+unused_imports = "deny"
 
 [dependencies]
 mpalsts_cli = { path = "./crates/cli", default-features = false }
@@ -29,12 +32,13 @@ include_gui = ["mpalsts_cli/include_gui"]
 anyhow = "1.0.102"
 auto-launch = "0.6.0"
 directories = "6.0.0"
-env_logger = "0.11.10"
+dotenv = "0.15.0"
 futures = "0.3.32"
-log = "0.4.29"
 ron = "0.12.1"
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
+tracing = "0.1"
+tracing-subscriber = "0.3.23"
 
 [package.metadata.bundle]
 name = "Multi-platform ALS Theme Switcher"

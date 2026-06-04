@@ -2,12 +2,15 @@
 
 use std::pin::pin;
 
+use dotenv::dotenv;
 use futures::StreamExt;
+use tracing::info;
 
 use super::*;
 
 fn scaffold() {
-	env_logger::try_init().ok();
+	dotenv().ok();
+	_ = tracing_subscriber::fmt::try_init();
 }
 
 #[test]
@@ -16,7 +19,7 @@ fn test_read() {
 		scaffold();
 
 		if !is_sensor_available() {
-			log::info!("No sensor available for this device");
+			info!("No sensor available for this device");
 			return;
 		}
 
@@ -24,7 +27,7 @@ fn test_read() {
 
 		let result = sensor.read().await;
 
-		log::info!("[READ] Sensor output: {result:?}");
+		info!("[READ] Sensor output: {result:?}");
 		assert!(result.is_ok(), "Sensor read should succeed");
 	});
 }
@@ -35,7 +38,7 @@ fn test_poll_read() {
 		scaffold();
 
 		if !is_sensor_available() {
-			log::info!("No sensor available for this device");
+			info!("No sensor available for this device");
 			return;
 		}
 
@@ -48,7 +51,7 @@ fn test_poll_read() {
 		while iterations < MAX_ITERATIONS
 			&& let Some(Ok(value)) = stream.next().await
 		{
-			log::info!("[POLL] Sensor output: {value:?}");
+			info!("[POLL] Sensor output: {value:?}");
 			iterations += 1;
 		}
 
@@ -65,7 +68,7 @@ fn test_mutate() {
 		scaffold();
 
 		if !is_sensor_available() {
-			log::info!("No sensor available for this device");
+			info!("No sensor available for this device");
 			return;
 		}
 
