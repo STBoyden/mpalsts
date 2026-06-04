@@ -16,9 +16,14 @@ needless_return = "allow"
 
 [workspace.lints.rust]
 async_fn_in_trait = "allow"
+unused_imports = "forbid"
 
 [dependencies]
-mpalsts_cli.path = "./crates/cli"
+mpalsts_cli = { path = "./crates/cli", default-features = false }
+
+[features]
+default = ["include_gui"]
+include_gui = ["mpalsts_cli/include_gui"]
 
 [workspace.dependencies]
 anyhow = "1.0.102"
