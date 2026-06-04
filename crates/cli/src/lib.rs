@@ -18,7 +18,11 @@ pub fn main() {
 			"true"
 		})
 		.required(!cfg!(feature = "include_gui"))
-		.help("Run as a daemon")
+		.help(if cfg!(feature = "include_gui") {
+			"Run as a daemon"
+		} else {
+			"Run as a daemon (required)"
+		})
 		.long_help(
 			"Run as a daemon - required flag if the binary is compiled without the `include_gui` feature",
 		);
