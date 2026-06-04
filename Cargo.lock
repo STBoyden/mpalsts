@@ -3815,6 +3815,7 @@ dependencies = [
  "directories",
  "dotenv",
  "fork",
+ "futures",
  "mpalsts_gui",
  "mpalsts_sensors",
  "mpalsts_shared",

@@ -721,9 +721,15 @@ fn update_theme(cx: &mut gpui::App, window: Option<&mut Window>) {
 }
 
 pub fn run() {
+	run_with_state(AppState::read_config().unwrap_or_default());
+}
+
+pub fn run_with_state(initial_state: AppState) {
 	gpui_platform::application()
 		.with_assets(gpui_component_assets::Assets)
 		.run(move |cx| {
+			let initial_state = initial_state.clone();
+
 			trace!("Initialising GPUI component assets...");
 			gpui_component::init(cx);
 
@@ -754,7 +760,7 @@ pub fn run() {
 			};
 
 			let state = cx.new(|_| {
-				return AppState::read_config().unwrap_or_default();
+				return initial_state;
 			});
 
 			cx.spawn(async move |cx| {

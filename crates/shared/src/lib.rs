@@ -15,7 +15,8 @@ pub const MIN_SECONDS_THRESHOLD: f32 = 10.;
 pub const DEFAULT_SECONDS_THRESHOLD: f32 = 30.;
 pub const MAX_SECONDS_THRESHOLD: f32 = 120.;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppState {
 	pub enable_theme_switching: bool,
 	pub enable_autostart: bool,
@@ -27,7 +28,8 @@ pub struct AppState {
 }
 
 #[cfg(target_os = "linux")]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LinuxState {
 	pub light_theme: Option<String>,
 	pub dark_theme: Option<String>,

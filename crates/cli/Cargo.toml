@@ -15,6 +15,7 @@ mpalsts_theme_switch.path = "../theme-switch"
 anyhow.workspace = true
 directories.workspace = true
 dotenv.workspace = true
+futures.workspace = true
 serde.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true

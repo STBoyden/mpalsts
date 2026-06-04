@@ -24,6 +24,33 @@ Currently supported platforms:
 Windows support is planned -- however I do not use Windows myself and do not
 have plans to install it for the time being.
 
+## CLI usage
+
+The daemon can be configured from the command line:
+
+```bash
+mpalsts --daemon \
+  --lumens-threshold 100 \
+  --time-threshold 30 \
+  --sensor /sys/bus/iio/devices/iio:device0/in_illuminance_raw \
+  --light-theme Breeze \
+  --dark-theme Breeze-Dark \
+  --save
+```
+
+`--sensor`, `--light-theme`, and `--dark-theme` are Linux-only. Use `--save` to
+write the provided values to the config file so future runs can reuse them.
+
+Current config values can be printed with the `config` subcommand:
+
+```bash
+mpalsts config lumens-threshold
+mpalsts config time-threshold
+mpalsts config sensor       # Linux-only
+mpalsts config light-theme  # Linux-only
+mpalsts config dark-theme   # Linux-only
+```
+
 ## Requirements
 
 - A device with an ambient light sensor: Framework 13/16, MacBook Pro, etc.
