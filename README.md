@@ -26,7 +26,9 @@ have plans to install it for the time being.
 
 ## CLI usage
 
-The daemon can be configured from the command line:
+The runtime can be configured from the command line. Use `--daemon` (`-d`) to
+run in the background, or `--interactive` (`-i`) to run the same runtime in the
+foreground without opening the GUI:
 
 ```bash
 mpalsts --daemon \
@@ -37,6 +39,9 @@ mpalsts --daemon \
   --dark-theme Breeze-Dark \
   --save
 ```
+
+`--daemon` and `--interactive` are mutually exclusive. GUI builds open the GUI
+when neither flag is provided; no-GUI builds require one of those flags.
 
 `--sensor`, `--light-theme`, and `--dark-theme` are Linux-only. Use `--save` to
 write the provided values to the config file so future runs can reuse them.

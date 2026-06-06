@@ -14,6 +14,7 @@ use crate::runtime::{RuntimeMode, runtime};
 mod runtime;
 
 const DAEMON_ARG: &str = "daemon";
+const INTERACTIVE_ARG: &str = "interactive";
 const SAVE_ARG: &str = "save";
 const CONFIG_COMMAND: &str = "config";
 const LUMENS_THRESHOLD_ARG: &str = "lumens-threshold";
@@ -29,6 +30,13 @@ fn daemon_run(state: AppState) -> Result<(), CliError> {
 	trace!("Running in daemon mode");
 
 	runtime(Some(RuntimeMode::Daemon), state)?;
+	return Ok(());
+}
+
+fn interactive_run(state: AppState) -> Result<(), CliError> {
+	trace!("Running in interactive mode");
+
+	runtime(Some(RuntimeMode::Interactive), state)?;
 	return Ok(());
 }
 
@@ -171,21 +179,13 @@ pub fn main() -> Result<(), CliError> {
 		.short('d')
 		.long(DAEMON_ARG)
 		.action(ArgAction::SetTrue)
-		.default_value(if cfg!(feature = "include_gui") {
-			"false"
-		} else {
-			"true"
-		})
-		.help(if cfg!(feature = "include_gui") {
-			"Run as a daemon"
-		} else {
-			"Run as a daemon (default for no-GUI builds)"
-		})
-		.long_help(if cfg!(feature = "include_gui") {
-			"Run as a daemon"
-		} else {
-			"Run as a daemon. This is the default when the binary is compiled without the `include_gui` feature."
-		});
+		.help("Run as a daemon");
+
+	let interactive_arg = Arg::new(INTERACTIVE_ARG)
+		.short('i')
+		.long(INTERACTIVE_ARG)
+		.action(ArgAction::SetTrue)
+		.help("Run interactively in the foreground");
 
 	let save_arg = Arg::new(SAVE_ARG)
 		.long(SAVE_ARG)
@@ -213,10 +213,17 @@ pub fn main() -> Result<(), CliError> {
 
 	let mut cmd = Command::new("mpalsts")
 		.arg(daemon_arg)
+		.arg(interactive_arg)
 		.arg(save_arg)
 		.arg(lumens_threshold_arg)
 		.arg(time_threshold_arg)
-		.subcommand(config_subcommand());
+		.group(
+			clap::ArgGroup::new("mode")
+				.args([DAEMON_ARG, INTERACTIVE_ARG])
+				.required(!cfg!(feature = "include_gui")),
+		)
+		.subcommand(config_subcommand())
+		.subcommand_negates_reqs(true);
 
 	#[cfg(target_os = "linux")]
 	{
@@ -262,11 +269,14 @@ pub fn main() -> Result<(), CliError> {
 	}
 
 	let run_as_daemon = matches.get_flag(DAEMON_ARG);
+	let run_interactive = matches.get_flag(INTERACTIVE_ARG);
 
 	#[cfg(feature = "include_gui")]
 	{
 		if run_as_daemon {
 			return daemon_run(state);
+		} else if run_interactive {
+			return interactive_run(state);
 		} else {
 			return gui_run(state);
 		}
@@ -275,6 +285,8 @@ pub fn main() -> Result<(), CliError> {
 	{
 		if run_as_daemon {
 			return daemon_run(state);
+		} else if run_interactive {
+			return interactive_run(state);
 		} else {
 			use anyhow::anyhow;
 
