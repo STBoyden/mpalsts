@@ -99,6 +99,43 @@ To stop and disable the service:
 systemctl --user disable --now mpalsts.service
 ```
 
+### Run on login with launchd user agents on MacOS
+
+If you installed the binary with `cargo install`, you can use the example
+LaunchAgent in [`docs/launchd/com.stboyden.mpalsts.plist`](docs/launchd/com.stboyden.mpalsts.plist)
+to start `mpalsts` when you log in. The agent runs `mpalsts --interactive` so
+launchd owns the foreground process directly.
+
+Install and start the LaunchAgent:
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+cp docs/launchd/com.stboyden.mpalsts.plist \
+  ~/Library/LaunchAgents/com.stboyden.mpalsts.plist
+launchctl bootstrap "gui/$(id -u)" \
+  ~/Library/LaunchAgents/com.stboyden.mpalsts.plist
+launchctl enable "gui/$(id -u)/com.stboyden.mpalsts"
+launchctl kickstart -k "gui/$(id -u)/com.stboyden.mpalsts"
+```
+
+Check its status:
+
+```bash
+launchctl print "gui/$(id -u)/com.stboyden.mpalsts"
+```
+
+If your `mpalsts` binary is not at `~/.cargo/bin/mpalsts`, edit the
+`ProgramArguments` command in `~/Library/LaunchAgents/com.stboyden.mpalsts.plist`
+before loading it.
+
+To stop and remove the LaunchAgent:
+
+```bash
+launchctl bootout "gui/$(id -u)" \
+  ~/Library/LaunchAgents/com.stboyden.mpalsts.plist
+rm ~/Library/LaunchAgents/com.stboyden.mpalsts.plist
+```
+
 ### First-time run on MacOS
 
 The app is not yet signed with a paid Apple developer ID, as such you will
