@@ -80,6 +80,12 @@ pub fn runtime(mode: Option<RuntimeMode>, state: AppState) -> Result<(), Runtime
 	let mut current_theme_mode: Option<ThemeMode> = None;
 	let mut pending_theme_mode: Option<(ThemeMode, Instant)> = None;
 
+	info!("Starting runtime");
+	info!(
+		lumens_threshold = lumens_threshold,
+		seconds_threshold = format!("{seconds_threshold:?}"),
+	);
+
 	loop {
 		let lumens = match block_on(sensor.read()) {
 			Ok(lumens) => lumens,
@@ -97,7 +103,10 @@ pub fn runtime(mode: Option<RuntimeMode>, state: AppState) -> Result<(), Runtime
 		};
 
 		trace!(
-			"lumens: {lumens}, lumens_threshold: {lumens_threshold}, seconds_threshold: {seconds_threshold:?}, desired_theme_mode: {desired_theme_mode:?}"
+			lumens = lumens,
+			lumens_threshold = lumens_threshold,
+			seconds_threshold = format!("{seconds_threshold:?}"),
+			desired_theme_mode = format!("{desired_theme_mode:?}"),
 		);
 
 		if current_theme_mode.is_none() {
@@ -132,6 +141,8 @@ pub fn runtime(mode: Option<RuntimeMode>, state: AppState) -> Result<(), Runtime
 }
 
 fn switch_theme(theme_switcher: &impl ThemeSwitcher, mode: ThemeMode) {
+	info!("Switching to {mode:?} theme");
+
 	match mode {
 		ThemeMode::Light => theme_switcher.to_light(),
 		ThemeMode::Dark => theme_switcher.to_dark(),

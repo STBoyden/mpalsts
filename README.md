@@ -66,6 +66,39 @@ mpalsts config dark-theme   # Linux-only
 Nightly releases are availble on the releases page
 [here](https://codeberg.org/STBoyden/mpalsts/releases).
 
+### Run on login with systemd user services on Linux
+
+If you installed the binary with `cargo install`, you can use the example
+systemd user service in [`docs/systemd/mpalsts.service`](docs/systemd/mpalsts.service)
+to start `mpalsts` when your graphical session starts. The service runs
+`mpalsts --interactive` so systemd owns the foreground process directly.
+
+Install and start the service:
+
+```bash
+install -Dm644 docs/systemd/mpalsts.service \
+  ~/.config/systemd/user/mpalsts.service
+systemctl --user daemon-reload
+systemctl --user enable --now mpalsts.service
+```
+
+Check its status or logs:
+
+```bash
+systemctl --user status mpalsts.service
+journalctl --user -u mpalsts.service
+```
+
+If your `mpalsts` binary is not at `~/.cargo/bin/mpalsts`, edit the
+`ExecStart=` line in `~/.config/systemd/user/mpalsts.service` before enabling
+it.
+
+To stop and disable the service:
+
+```bash
+systemctl --user disable --now mpalsts.service
+```
+
 ### First-time run on MacOS
 
 The app is not yet signed with a paid Apple developer ID, as such you will

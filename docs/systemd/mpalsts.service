@@ -1,0 +1,14 @@
+[Unit]
+Description=Multi-platform ALS Theme Switcher
+Documentation=https://codeberg.org/STBoyden/mpalsts
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/mpalsts --interactive
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=graphical-session.target
