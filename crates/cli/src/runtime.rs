@@ -27,6 +27,7 @@ pub enum RuntimeError {
 	NoSensor,
 }
 
+#[allow(unused_mut)]
 pub fn runtime(mode: Option<RuntimeMode>, state: AppState) -> Result<(), RuntimeError> {
 	let mode = mode.unwrap_or_default();
 

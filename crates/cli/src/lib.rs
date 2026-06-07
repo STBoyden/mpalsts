@@ -123,6 +123,7 @@ fn apply_cli_settings(state: &mut AppState, matches: &clap::ArgMatches) -> Resul
 }
 
 fn config_subcommand() -> Command {
+	#[allow(unused_mut)]
 	let mut command = Command::new(CONFIG_COMMAND)
 		.about("Print current config values")
 		.subcommand_required(true)
@@ -211,6 +212,7 @@ pub fn main() -> Result<(), CliError> {
 			"Time threshold in seconds ({MIN_SECONDS_THRESHOLD}-{MAX_SECONDS_THRESHOLD})"
 		));
 
+	#[allow(unused_mut)]
 	let mut cmd = Command::new("mpalsts")
 		.arg(daemon_arg)
 		.arg(interactive_arg)

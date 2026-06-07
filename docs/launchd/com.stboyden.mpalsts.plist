@@ -8,9 +8,8 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/sh</string>
-    <string>-lc</string>
-    <string>exec "$HOME/.cargo/bin/mpalsts" --interactive</string>
+    <string>/Users/<USER>/.cargo/bin/mpalsts</string>
+    <string>--interactive</string>
   </array>
 
   <key>RunAtLoad</key>
