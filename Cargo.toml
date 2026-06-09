@@ -10,7 +10,7 @@ resolver = "3"
 members = ["crates/als", "crates/cli", "crates/gui", "crates/shared", "crates/theme-switch"]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 license = "MIT"
 description = "Multiplatform theme switcher using the ambient light sensor."
