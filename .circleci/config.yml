@@ -410,6 +410,92 @@ jobs:
                   echo "Uploaded $asset_name"
                 done
 
+      - run:
+          name: Upload artifacts to tagged GitHub release
+          command: |
+            set -euo pipefail
+
+            github_token="${GH_PAT:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
+            : "${github_token:?GH_PAT, GH_TOKEN, or GITHUB_TOKEN must be configured in CircleCI}"
+            : "${CIRCLE_TAG:?This workflow must run from a Git tag}"
+
+            api_root="https://api.github.com"
+            repo="${GITHUB_REPOSITORY:-STBoyden/mpalsts}"
+            tag="$CIRCLE_TAG"
+            encoded_tag=$(jq -nr --arg tag "$tag" '$tag | @uri')
+            auth_header="Authorization: Bearer ${github_token}"
+            accept_header="Accept: application/vnd.github+json"
+            api_version_header="X-GitHub-Api-Version: 2022-11-28"
+
+            request_status() {
+              local output_file="$1"
+              shift
+
+              curl -sS \
+                -w "%{http_code}" \
+                -o "$output_file" \
+                -H "$auth_header" \
+                -H "$accept_header" \
+                -H "$api_version_header" \
+                "$@"
+            }
+
+            release_response="$(mktemp)"
+            status=$(request_status "$release_response" \
+              "$api_root/repos/$repo/releases/tags/$encoded_tag")
+
+            if [ "$status" = "404" ]; then
+              echo "No GitHub release found for tag $tag; creating one."
+
+              create_payload=$(jq -n \
+                --arg tag "$tag" \
+                '{tag_name: $tag, name: $tag, body: "Automated release artifacts for \($tag).", draft: false, prerelease: false}')
+
+              status=$(request_status "$release_response" \
+                -X POST \
+                -H "Content-Type: application/json" \
+                -d "$create_payload" \
+                "$api_root/repos/$repo/releases")
+            else
+              echo "Found GitHub release for tag $tag."
+            fi
+
+            if [ "$status" != "200" ] && [ "$status" != "201" ]; then
+              echo "Failed to fetch or create GitHub release for tag $tag (HTTP $status):" >&2
+              cat "$release_response" >&2
+              exit 1
+            fi
+
+            upload_url=$(jq -r '.upload_url | sub("\\{.*$"; "")' "$release_response")
+            if [ -z "$upload_url" ] || [ "$upload_url" = "null" ]; then
+              echo "GitHub release response did not include an upload_url:" >&2
+              cat "$release_response" >&2
+              exit 1
+            fi
+
+            find /tmp/workspace/artifacts -type f \
+              \( -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" \) \
+              | sort \
+              | while read -r artifact; do
+                  asset_name=$(basename "$artifact")
+                  encoded_asset_name=$(jq -nr --arg name "$asset_name" '$name | @uri')
+                  upload_response="$(mktemp)"
+
+                  status=$(request_status "$upload_response" \
+                    -X POST \
+                    -H "Content-Type: application/octet-stream" \
+                    --data-binary "@${artifact}" \
+                    "$upload_url?name=$encoded_asset_name")
+
+                  if [ "$status" != "201" ]; then
+                    echo "Failed to upload $asset_name (HTTP $status):" >&2
+                    cat "$upload_response" >&2
+                    exit 1
+                  fi
+
+                  echo "Uploaded $asset_name"
+                done
+
 workflows:
   tagged-release:
     jobs:
