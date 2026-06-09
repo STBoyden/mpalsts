@@ -63,8 +63,14 @@ mpalsts config dark-theme   # Linux-only
 
 ## Installation
 
-Nightly releases are availble on the releases page
+Versioned releases are availble on the releases page
 [here](https://codeberg.org/STBoyden/mpalsts/releases).
+
+Additionally, you can install directly from source using `cargo install`.
+
+```bash
+cargo install --git https://codeberg.org/STBoyden/mpalsts
+```
 
 ### Run on login with systemd user services on Linux
 
