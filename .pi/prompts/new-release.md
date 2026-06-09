@@ -10,11 +10,18 @@ following format:
 - ... (describe changes/fixes/etc)
 ```
 
+> [!NOTE]
+>
+> - DO NOT include notes about non-app related changes in the release notes.
+
 Make sure to create a corresponding tag for the release using `fj tag create
 v<RELEASE VERSION HERE>`.
 
-Please make sure to mirror the release and release notes on GitHub using the
-`gh` CLI (don't push a tag).
+Once the forgejo release and tag are created. Please make sure to mirror only
+the release on GitHub (do not push any code or tags, these are automatically
+mirrored by Codeberg). There may be a delay before the tag is mirrored on to
+GitHub, so please be patient. If the tag does not appear for 10 minutes, please
+continue to the next step but inform me at the end.
 
 Once all steps are complete, please finally make sure to bump the version in the
 `Cargo.toml` file (ask me to specify whether it's a patch, minor, or major
