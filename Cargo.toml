@@ -7,7 +7,7 @@ description.workspace = true
 
 [workspace]
 resolver = "3"
-members = ["crates/als", "crates/cli", "crates/gui", "crates/shared", "crates/theme-switch"]
+members = ["crates/als", "crates/cli", "crates/gui", "crates/shared", "crates/sync", "crates/theme-switch"]
 
 [workspace.package]
 version = "1.0.1"
@@ -43,6 +43,14 @@ serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
 tracing = "0.1"
 tracing-subscriber = "0.3.23"
+
+
+# these should only be opted-into when building for macos
+block2 = "0.6.2"
+objc2 = "0.6.4"
+objc2-core-foundation = "0.3.2"
+objc2-foundation = "0.3.2"
+
 
 [package.metadata.bundle]
 name = "Multi-platform ALS Theme Switcher"

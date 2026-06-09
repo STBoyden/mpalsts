@@ -121,8 +121,9 @@ impl AppState {
 	}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[repr(u8)]
 pub enum ThemeMode {
-	Light,
-	Dark,
+	Light = 0,
+	Dark = 1,
 }
