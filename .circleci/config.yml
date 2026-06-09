@@ -310,67 +310,108 @@ jobs:
           path: artifacts
           destination: mpalsts-macos-app
 
-  create-release:
+  publish-release-assets:
     docker:
       - image: fedora:latest
 
     resource_class: small
 
     steps:
-      - checkout
-
       - attach_workspace:
           at: /tmp/workspace
 
       - run:
-          name: Install Forgejo CLI
+          name: Install release tooling
           command: |
             set -eux
 
-            dnf install -y dnf-plugins-core
-
-            dnf copr enable -y lihaohong/forgejo-cli
-            dnf install -y forgejo-cli
-
-            fj -H codeberg.org auth add-key "${CB_USER}" "${CB_PAT}"
+            dnf install -y curl jq
 
       - run:
-          name: Create release
+          name: Upload artifacts to tagged Forgejo release
           command: |
-            set -eux
+            set -euo pipefail
 
-            TAG=$(date +'nightly.%Y-%m-%d-%H%M')
-            RELEASE="nightly-release-$(date +'%Y-%m-%d_%H-%M')"
+            : "${CB_PAT:?CB_PAT must be configured in CircleCI}"
+            : "${CIRCLE_TAG:?This workflow must run from a Git tag}"
 
-            fj -H codeberg.org release create \
-              -p \
-              --create-tag "$TAG" \
-              "$RELEASE" \
-              --repo codeberg.org/STBoyden/mpalsts
+            api_root="https://codeberg.org/api/v1"
+            repo="STBoyden/mpalsts"
+            tag="$CIRCLE_TAG"
+            encoded_tag=$(jq -nr --arg tag "$tag" '$tag | @uri')
+            auth_header="Authorization: token ${CB_PAT}"
+
+            request_status() {
+              local output_file="$1"
+              shift
+
+              curl -sS \
+                -w "%{http_code}" \
+                -o "$output_file" \
+                -H "$auth_header" \
+                "$@"
+            }
+
+            release_response="$(mktemp)"
+            status=$(request_status "$release_response" \
+              "$api_root/repos/$repo/releases/tags/$encoded_tag")
+
+            if [ "$status" = "404" ]; then
+              echo "No Forgejo release found for tag $tag; creating one."
+
+              create_payload=$(jq -n \
+                --arg tag "$tag" \
+                '{tag_name: $tag, name: $tag, body: "Automated release artifacts for \($tag).", draft: false, prerelease: false}')
+
+              status=$(request_status "$release_response" \
+                -X POST \
+                -H "Content-Type: application/json" \
+                -d "$create_payload" \
+                "$api_root/repos/$repo/releases")
+            else
+              echo "Found Forgejo release for tag $tag."
+            fi
+
+            if [ "$status" != "200" ] && [ "$status" != "201" ]; then
+              echo "Failed to fetch or create Forgejo release for tag $tag (HTTP $status):" >&2
+              cat "$release_response" >&2
+              exit 1
+            fi
+
+            release_id=$(jq -r '.id' "$release_response")
+            if [ -z "$release_id" ] || [ "$release_id" = "null" ]; then
+              echo "Forgejo release response did not include an id:" >&2
+              cat "$release_response" >&2
+              exit 1
+            fi
 
             echo "Workspace contents:"
             find /tmp/workspace -type f
 
             find /tmp/workspace/artifacts -type f \
               \( -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" \) \
-              | while read -r f; do
+              | sort \
+              | while read -r artifact; do
+                  asset_name=$(basename "$artifact")
+                  encoded_asset_name=$(jq -nr --arg name "$asset_name" '$name | @uri')
+                  upload_response="$(mktemp)"
 
-                  if [[ $f == ".",* ]]; then
-                    continue
+                  status=$(request_status "$upload_response" \
+                    -X POST \
+                    -F "attachment=@${artifact}" \
+                    "$api_root/repos/$repo/releases/$release_id/assets?name=$encoded_asset_name")
+
+                  if [ "$status" != "200" ] && [ "$status" != "201" ]; then
+                    echo "Failed to upload $asset_name (HTTP $status):" >&2
+                    cat "$upload_response" >&2
+                    exit 1
                   fi
 
-                  fj -H codeberg.org release asset create \
-                    "$RELEASE" \
-                    "$f" \
-                    --repo codeberg.org/STBoyden/mpalsts
-
-                  echo "Uploaded $(basename "$f")"
+                  echo "Uploaded $asset_name"
                 done
 
 workflows:
-  build:
-    when:
-      equal: [main, << pipeline.git.branch >>]
+  tagged-release:
     jobs:
       - build-linux:
           name: build-linux-debian-x86_64
@@ -378,6 +419,11 @@ workflows:
           container: node:latest
           package_format: deb
           arch: x86_64
+          filters: &tagged_release_filters
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
 
       - build-linux:
           name: build-linux-ubuntu-x86_64
@@ -385,6 +431,7 @@ workflows:
           container: ubuntu:latest
           package_format: deb
           arch: x86_64
+          filters: *tagged_release_filters
 
       - build-linux:
           name: build-linux-fedora-x86_64
@@ -392,6 +439,7 @@ workflows:
           container: fedora:latest
           package_format: rpm
           arch: x86_64
+          filters: *tagged_release_filters
 
       - build-linux:
           name: build-linux-debian-arm64
@@ -399,6 +447,7 @@ workflows:
           container: node:latest
           package_format: deb
           arch: arm64
+          filters: *tagged_release_filters
 
       - build-linux:
           name: build-linux-ubuntu-arm64
@@ -406,6 +455,7 @@ workflows:
           container: ubuntu:latest
           package_format: deb
           arch: arm64
+          filters: *tagged_release_filters
 
       - build-linux:
           name: build-linux-fedora-arm64
@@ -413,10 +463,12 @@ workflows:
           container: fedora:latest
           package_format: rpm
           arch: arm64
+          filters: *tagged_release_filters
 
-      - build-macos
+      - build-macos:
+          filters: *tagged_release_filters
 
-      - create-release:
+      - publish-release-assets:
           requires:
             - build-linux-debian-x86_64
             - build-linux-ubuntu-x86_64
@@ -425,3 +477,4 @@ workflows:
             - build-linux-ubuntu-arm64
             - build-linux-fedora-arm64
             - build-macos
+          filters: *tagged_release_filters
