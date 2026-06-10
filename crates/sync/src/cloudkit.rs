@@ -22,11 +22,6 @@ mod _cloudkit {
 }
 
 #[cfg(all(feature = "cloudkit", not(macos)))]
-mod _cloudkit {
-	compile_error!("CloudKit is only availble on macOS");
-}
-
-#[cfg(dummy)]
 mod _cloudkit {}
 
 #[allow(unused_imports)]
