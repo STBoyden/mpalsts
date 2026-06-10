@@ -25,5 +25,8 @@ objc2-core-foundation = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-cloud-kit = { version = "0.3.2" }
 
+[dev-dependencies]
+futures = { workspace = true }
+
 [lints]
 workspace = true

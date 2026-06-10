@@ -3883,6 +3883,7 @@ version = "1.0.1"
 dependencies = [
  "block2",
  "cfg_aliases",
+ "futures",
  "mpalsts_shared",
  "objc2",
  "objc2-cloud-kit",

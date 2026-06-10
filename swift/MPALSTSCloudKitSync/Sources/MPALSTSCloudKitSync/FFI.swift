@@ -1,7 +1,11 @@
 import CloudKit
 import Foundation
 
+#if DEBUG
+let CONTAINER_ID = "iCloud.com.stboyden.mpalsts.dev"
+#else
 let CONTAINER_ID = "iCloud.com.stboyden.mpalsts"
+#endif
 let RECORD_ID = CKRecord.ID(recordName: "appearance-preference")
 
 enum ThemeMode: UInt8, Codable {
