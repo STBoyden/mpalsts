@@ -29,4 +29,5 @@ mod _cloudkit {
 #[cfg(dummy)]
 mod _cloudkit {}
 
+#[allow(unused_imports)]
 pub use _cloudkit::*;

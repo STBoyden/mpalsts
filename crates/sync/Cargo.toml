@@ -7,13 +7,7 @@ description.workspace = true
 
 [features]
 default = ["cloudkit"]
-cloudkit = [
-  "dep:block2",
-  "dep:objc2",
-  "dep:objc2-core-foundation",
-  "dep:objc2-foundation",
-  "dep:objc2-cloud-kit",
-]
+cloudkit = []
 
 [build-dependencies]
 cfg_aliases = "0.2.1"
@@ -23,12 +17,12 @@ mpalsts_shared.path = "../shared"
 serde.workspace = true
 thiserror.workspace = true
 
-# enabled when cloudkit feature is enabled
-block2 = { workspace = true, optional = true }
-objc2 = { workspace = true, optional = true }
-objc2-core-foundation = { workspace = true, optional = true }
-objc2-foundation = { workspace = true, optional = true }
-objc2-cloud-kit = { version = "0.3.2", optional = true }
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { workspace = true }
+objc2 = { workspace = true }
+objc2-core-foundation = { workspace = true }
+objc2-foundation = { workspace = true }
+objc2-cloud-kit = { version = "0.3.2" }
 
 [lints]
 workspace = true
