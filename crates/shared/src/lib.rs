@@ -127,3 +127,19 @@ pub enum ThemeMode {
 	Light = 0,
 	Dark = 1,
 }
+
+pub enum ThemeModeError {
+	InvalidValue,
+}
+
+impl TryFrom<u8> for ThemeMode {
+	type Error = ThemeModeError;
+
+	fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
+		match value {
+			0 => Ok(ThemeMode::Light),
+			1 => Ok(ThemeMode::Dark),
+			_ => Err(ThemeModeError::InvalidValue),
+		}
+	}
+}
