@@ -15,7 +15,6 @@ mpalsts_theme_switch.path = "../theme-switch"
 mpalsts_sync.path = "../sync"
 
 anyhow.workspace = true
-directories.workspace = true
 dotenv.workspace = true
 futures.workspace = true
 serde.workspace = true

@@ -1,12 +1,16 @@
 use std::{
 	fs::{self, File},
 	io::{self, BufWriter},
+	sync::LazyLock,
 };
 
 use directories::ProjectDirs;
 use ron::{de::SpannedError, ser::PrettyConfig};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+pub static PROJECT_DIR: LazyLock<Option<ProjectDirs>> =
+	LazyLock::new(|| ProjectDirs::from("com", "stboyden", "mpalsts"));
 
 pub const MIN_LUMENS_THRESHOLD: f32 = 10.;
 pub const DEFAULT_LUMENS_THRESHOLD: f32 = 100.;
@@ -86,8 +90,7 @@ pub type Result<T> = std::result::Result<T, AppStateError>;
 
 impl AppState {
 	pub fn read_config() -> Result<Self> {
-		let project_dir =
-			ProjectDirs::from("com", "stboyden", "mpalsts").ok_or(AppStateError::NoConfigDir)?;
+		let project_dir = PROJECT_DIR.as_ref().ok_or(AppStateError::NoConfigDir)?;
 
 		let config_dir = project_dir.config_dir();
 
@@ -107,8 +110,7 @@ impl AppState {
 	}
 
 	pub fn save_config(&self) -> Result<()> {
-		let project_dir =
-			ProjectDirs::from("com", "stboyden", "mpalsts").ok_or(AppStateError::NoConfigDir)?;
+		let project_dir = PROJECT_DIR.as_ref().ok_or(AppStateError::NoConfigDir)?;
 
 		let config_dir = project_dir.config_dir();
 		fs::create_dir_all(config_dir)?;
