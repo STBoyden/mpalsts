@@ -5,7 +5,10 @@ use std::{
 	io::{self, BufWriter, Read, Write},
 	path::{Path, PathBuf},
 	process,
-	sync::Arc,
+	sync::{
+		Arc,
+		atomic::{AtomicBool, Ordering},
+	},
 	thread,
 	time::{Duration, Instant},
 };
@@ -61,11 +64,6 @@ pub enum RuntimeError {
 	NoSensor,
 }
 
-struct AutoDeletingFile {
-	file: Option<File>,
-	file_path: Arc<PathBuf>,
-}
-
 #[derive(Debug, Error)]
 enum AutoDeletingFileError {
 	#[error("path is not a file")]
@@ -76,6 +74,12 @@ enum AutoDeletingFileError {
 
 	#[error("could not get lock to file: {0}")]
 	FailedToObtainLock(TryLockError),
+}
+
+struct AutoDeletingFile {
+	file: Option<File>,
+	file_path: Arc<PathBuf>,
+	is_in_drop: Arc<AtomicBool>,
 }
 
 impl AutoDeletingFile {
@@ -106,9 +110,11 @@ impl AutoDeletingFile {
 		}
 
 		let file_path = Arc::new(file_path);
+		let is_in_drop = Arc::new(AtomicBool::new(false));
 
 		{
 			let file_path = file_path.clone();
+			let is_in_drop = is_in_drop.clone();
 
 			thread::spawn(move || {
 				let file_path = file_path.clone();
@@ -116,7 +122,7 @@ impl AutoDeletingFile {
 
 				let contents = fs::read_to_string(file_path).expect("could not get contents of PID file");
 
-				loop {
+				while !is_in_drop.load(Ordering::Acquire) {
 					if !file_path.exists() {
 						warn!("PIDfile got deleted somehow! recreating...");
 
@@ -133,6 +139,7 @@ impl AutoDeletingFile {
 		return Ok(Self {
 			file_path: file_path.clone(),
 			file: Some(file),
+			is_in_drop,
 		});
 	}
 }
@@ -142,10 +149,13 @@ impl Drop for AutoDeletingFile {
 		let AutoDeletingFile {
 			file: Some(file),
 			file_path,
+			is_in_drop,
 		} = self
 		else {
 			return;
 		};
+
+		is_in_drop.store(true, Ordering::Release);
 
 		_ = fs::remove_file(file_path.as_path()).inspect_err(|err| {
 			tracing::error!(
