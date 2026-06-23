@@ -5,7 +5,9 @@
 //! liscensed under BSD 2-Clause.
 use std::{
 	cell::{RefCell, RefMut},
+	ffi::c_void,
 	fmt,
+	ptr::NonNull,
 };
 
 use objc2::rc::Retained;
@@ -23,6 +25,11 @@ const kAmbientLightSensorEvent: i64 = 12;
 #[link(name = "BezelServices", kind = "framework")]
 unsafe extern "C" {
 	fn ALCALSCopyALSServiceClient() -> *mut IOHIDServiceClient;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+	fn CFRelease(cf: *const c_void);
 }
 
 unsafe extern "C" {
@@ -51,6 +58,26 @@ pub enum MacOSALSError {
 
 type Result<T> = std::result::Result<T, MacOSALSError>;
 
+struct CopiedHIDEvent {
+	ptr: NonNull<IOHIDEventStruct>,
+}
+
+impl CopiedHIDEvent {
+	fn new(ptr: *mut IOHIDEventStruct) -> Option<Self> {
+		return NonNull::new(ptr).map(|ptr| Self { ptr });
+	}
+
+	fn as_ptr(&self) -> *mut IOHIDEventStruct {
+		return self.ptr.as_ptr();
+	}
+}
+
+impl Drop for CopiedHIDEvent {
+	fn drop(&mut self) {
+		unsafe { CFRelease(self.ptr.as_ptr() as *const c_void) };
+	}
+}
+
 pub struct MacOSSensorReader {
 	client: Option<Retained<IOHIDServiceClient>>,
 	#[cfg(test)]
@@ -66,7 +93,7 @@ impl MacOSSensorReader {
 		});
 	}
 
-	fn copy_hid_event(&mut self) -> Option<*mut IOHIDEventStruct> {
+	fn copy_hid_event(&mut self) -> Option<CopiedHIDEvent> {
 		if self.client.is_none() {
 			self.client = unsafe { Retained::from_raw(ALCALSCopyALSServiceClient()) };
 		}
@@ -78,11 +105,7 @@ impl MacOSSensorReader {
 
 			let event_ptr =
 				unsafe { IOHIDServiceClientCopyEvent(client_ptr, kAmbientLightSensorEvent, 0, 0) };
-			if event_ptr.is_null() {
-				return None;
-			}
-
-			return Some(event_ptr);
+			return CopiedHIDEvent::new(event_ptr);
 		}
 
 		return None;
@@ -94,20 +117,14 @@ impl MacOSSensorReader {
 	}
 
 	fn take_reading(&mut self) -> Result<SensorOutput> {
-		if !self.can_get_event() {
+		let Some(event) = self.copy_hid_event() else {
 			return Err(MacOSALSError::NoSensor);
-		}
+		};
 
-		let event_ptr = self.copy_hid_event();
+		let value =
+			unsafe { IOHIDEventGetFloatValue(event.as_ptr(), to_event_field(kAmbientLightSensorEvent)) };
 
-		if let Some(event_ptr) = event_ptr {
-			let value =
-				unsafe { IOHIDEventGetFloatValue(event_ptr, to_event_field(kAmbientLightSensorEvent)) };
-
-			return Ok(value);
-		}
-
-		return Ok(0.);
+		return Ok(value);
 	}
 
 	#[cfg(test)]

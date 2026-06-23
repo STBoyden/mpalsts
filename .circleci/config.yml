@@ -155,7 +155,22 @@ jobs:
       - run:
           name: Get package version
           command: |
-            version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select (.name | test("mpalsts")) | .version')
+            set -euo pipefail
+
+            : "${CIRCLE_TAG:?CIRCLE_TAG must be set for release builds}"
+
+            version=$(cargo metadata --format-version 1 --locked | jq -r '.packages[] | select(.name == "mpalsts") | .version')
+            if [ -z "$version" ] || [ "$version" = "null" ]; then
+              echo "Could not determine root package version" >&2
+              exit 1
+            fi
+
+            expected_tag="v$version"
+            if [ "$CIRCLE_TAG" != "$expected_tag" ]; then
+              echo "Tag $CIRCLE_TAG does not match package version $version; expected $expected_tag" >&2
+              exit 1
+            fi
+
             echo "export PACKAGE_VERSION=$version" >> "$BASH_ENV"
 
       - run:
@@ -178,20 +193,20 @@ jobs:
 
       - run:
           name: Build release binary
-          command: cargo build --release
+          command: cargo build --release --locked
 
       - run:
           name: Strip binary
           command: strip -s target/release/mpalsts
 
       - run:
-          name: Generate package artifact
+          name: Generate package artefact
           command: |
             set -eux
 
             case "<< parameters.package_format >>" in
               deb)
-                cargo deb
+                cargo deb --locked --no-build
                 ;;
               rpm)
                 cargo generate-rpm
@@ -203,16 +218,16 @@ jobs:
             esac
 
       - run:
-          name: Collect artifacts
+          name: Collect artefacts
           command: |
             set -eux
 
-            mkdir -p artifacts
+            mkdir -p artefacts
 
             find target -type f \( -name "*.deb" -o -name "*.rpm" \) \
-              -exec cp {} "artifacts/mpalsts_${PACKAGE_VERSION}_<< parameters.distro >>_<< parameters.arch >>.<< parameters.package_format >>" \;
+              -exec cp {} "artefacts/mpalsts_${PACKAGE_VERSION}_<< parameters.distro >>_<< parameters.arch >>.<< parameters.package_format >>" \;
 
-            ls -R artifacts
+            ls -R artefacts
 
       - save_cache:
           key: v1-cargo-linux-<< parameters.distro >>-<< parameters.arch >>-{{ checksum "Cargo.lock" }}
@@ -224,10 +239,10 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - artifacts
+            - artefacts
 
       - store_artifacts:
-          path: artifacts
+          path: artefacts
           destination: mpalsts-<< parameters.distro >>-<< parameters.arch >>-<< parameters.package_format >>
 
   build-macos:
@@ -266,7 +281,11 @@ jobs:
 
       - run:
           name: Build macOS app bundle
-          command: cargo bundle --release --format osx
+          command: |
+            set -eux
+
+            cargo build --release --locked
+            CARGO_BUNDLE_SKIP_BUILD=1 cargo bundle --release --format osx
 
       - run:
           name: Create DMG
@@ -284,15 +303,15 @@ jobs:
               "target/release/bundle/osx/Multi-platform ALS Theme Switcher.app"
 
       - run:
-          name: Collect artifacts
+          name: Collect artefacts
           command: |
             set -eux
 
-            mkdir -p artifacts
+            mkdir -p artefacts
 
-            cp target/release/bundle/osx/MPALSTS.dmg artifacts/
+            cp target/release/bundle/osx/MPALSTS.dmg artefacts/
 
-            ls -R artifacts
+            ls -R artefacts
 
       - save_cache:
           key: v1-cargo-macos-{{ checksum "Cargo.lock" }}
@@ -304,10 +323,10 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - artifacts
+            - artefacts
 
       - store_artifacts:
-          path: artifacts
+          path: artefacts
           destination: mpalsts-macos-app
 
   publish-release-assets:
@@ -328,7 +347,7 @@ jobs:
             dnf install -y curl jq
 
       - run:
-          name: Upload artifacts to tagged Forgejo release
+          name: Upload artefacts to tagged Forgejo release
           command: |
             set -euo pipefail
 
@@ -361,7 +380,7 @@ jobs:
 
               create_payload=$(jq -n \
                 --arg tag "$tag" \
-                '{tag_name: $tag, name: $tag, body: "Automated release artifacts for \($tag).", draft: false, prerelease: false}')
+                '{tag_name: $tag, name: $tag, body: "Automated release artefacts for \($tag).", draft: false, prerelease: false}')
 
               status=$(request_status "$release_response" \
                 -X POST \
@@ -388,17 +407,17 @@ jobs:
             echo "Workspace contents:"
             find /tmp/workspace -type f
 
-            find /tmp/workspace/artifacts -type f \
+            find /tmp/workspace/artefacts -type f \
               \( -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" \) \
               | sort \
-              | while read -r artifact; do
-                  asset_name=$(basename "$artifact")
+              | while read -r artefact; do
+                  asset_name=$(basename "$artefact")
                   encoded_asset_name=$(jq -nr --arg name "$asset_name" '$name | @uri')
                   upload_response="$(mktemp)"
 
                   status=$(request_status "$upload_response" \
                     -X POST \
-                    -F "attachment=@${artifact}" \
+                    -F "attachment=@${artefact}" \
                     "$api_root/repos/$repo/releases/$release_id/assets?name=$encoded_asset_name")
 
                   if [ "$status" != "200" ] && [ "$status" != "201" ]; then
@@ -411,7 +430,7 @@ jobs:
                 done
 
       - run:
-          name: Upload artifacts to tagged GitHub release
+          name: Upload artefacts to tagged GitHub release
           command: |
             set -euo pipefail
 
@@ -449,7 +468,7 @@ jobs:
 
               create_payload=$(jq -n \
                 --arg tag "$tag" \
-                '{tag_name: $tag, name: $tag, body: "Automated release artifacts for \($tag).", draft: false, prerelease: false}')
+                '{tag_name: $tag, name: $tag, body: "Automated release artefacts for \($tag).", draft: false, prerelease: false}')
 
               status=$(request_status "$release_response" \
                 -X POST \
@@ -473,18 +492,18 @@ jobs:
               exit 1
             fi
 
-            find /tmp/workspace/artifacts -type f \
+            find /tmp/workspace/artefacts -type f \
               \( -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" \) \
               | sort \
-              | while read -r artifact; do
-                  asset_name=$(basename "$artifact")
+              | while read -r artefact; do
+                  asset_name=$(basename "$artefact")
                   encoded_asset_name=$(jq -nr --arg name "$asset_name" '$name | @uri')
                   upload_response="$(mktemp)"
 
                   status=$(request_status "$upload_response" \
                     -X POST \
                     -H "Content-Type: application/octet-stream" \
-                    --data-binary "@${artifact}" \
+                    --data-binary "@${artefact}" \
                     "$upload_url?name=$encoded_asset_name")
 
                   if [ "$status" != "201" ]; then

@@ -443,8 +443,10 @@ impl App {
 							let checked = *checked;
 
 							_ = cx.spawn(async move |_, _| {
-								if checked && let Err(error) = auto_launcher.enable() {
-									error!("could not enable auto launcher: {error}");
+								if checked {
+									if let Err(error) = auto_launcher.enable() {
+										error!("could not enable auto launcher: {error}");
+									}
 								} else if let Err(error) = auto_launcher.disable() {
 									error!("could not disable auto launcher: {error}");
 								}

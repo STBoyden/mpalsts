@@ -45,7 +45,16 @@ impl LinuxThemeSwitcher {
 	}
 
 	pub fn get_themes(&self) -> Vec<String> {
-		return self.collect_directory_names(self.theme_directories());
+		let mut themes: BTreeSet<String> = self
+			.collect_directory_names(self.theme_directories())
+			.into_iter()
+			.collect();
+
+		for theme in self.get_kde_themes() {
+			themes.insert(theme);
+		}
+
+		return themes.into_iter().collect();
 	}
 
 	pub fn get_kde_themes(&self) -> Vec<String> {
@@ -55,8 +64,8 @@ impl LinuxThemeSwitcher {
 			Self::collect_directory_names_from(&theme_dir, &mut themes);
 		}
 
-		for color_scheme_dir in self.kde_color_scheme_directories() {
-			Self::collect_file_stems_from(&color_scheme_dir, "colors", &mut themes);
+		for colour_scheme_dir in self.kde_colour_scheme_directories() {
+			Self::collect_file_stems_from(&colour_scheme_dir, "colors", &mut themes);
 		}
 
 		return themes.into_iter().collect();
@@ -196,9 +205,7 @@ impl LinuxThemeSwitcher {
 
 		match Self::desktop_environment() {
 			Some(DesktopEnvironment::Gnome) => {
-				if self.gnome_current_theme().as_deref() != Some(theme.as_str()) {
-					self.switch_gnome_theme(theme, dark);
-				}
+				self.switch_gnome_theme(theme, dark);
 			}
 			Some(DesktopEnvironment::Kde) => {
 				if self.kde_current_theme().as_deref() != Some(theme.as_str()) {
@@ -206,9 +213,7 @@ impl LinuxThemeSwitcher {
 				}
 			}
 			None => {
-				if self.gnome_current_theme().as_deref() != Some(theme.as_str()) {
-					self.switch_gnome_theme(theme, dark);
-				}
+				self.switch_gnome_theme(theme, dark);
 
 				if self.kde_current_theme().as_deref() != Some(theme.as_str()) {
 					self.switch_kde_theme(theme);
@@ -218,7 +223,7 @@ impl LinuxThemeSwitcher {
 	}
 
 	fn switch_gnome_theme(&self, theme: &str, dark: bool) {
-		let color_scheme = if dark { "prefer-dark" } else { "prefer-light" };
+		let colour_scheme = if dark { "prefer-dark" } else { "prefer-light" };
 
 		_ = self.run_command_status([
 			"gsettings",
@@ -232,59 +237,64 @@ impl LinuxThemeSwitcher {
 			"set",
 			"org.gnome.desktop.interface",
 			"color-scheme",
-			color_scheme,
+			colour_scheme,
 		]);
 	}
 
 	fn switch_kde_theme(&self, theme: &str) {
-		let theme = match theme {
-			"Breeze-Dark" => "BreezeDark",
-			"Breeze" => "BreezeLight",
-			_ => theme,
-		};
+		let mut candidates = Vec::new();
 
-		let theme = theme.replace("-", "");
-		if self.run_command_status(["plasma-apply-colorscheme", &theme]) {
-			return;
+		match theme {
+			"Breeze-Dark" => candidates.push("BreezeDark".to_string()),
+			"Breeze" => candidates.push("BreezeLight".to_string()),
+			_ => {}
 		}
 
-		if self.run_command_status(["lookandfeeltool", "-a", &theme]) {
-			return;
+		let theme = theme.to_string();
+		if !candidates.contains(&theme) {
+			candidates.push(theme.clone());
 		}
 
-		_ = self.run_command_status([
-			"kwriteconfig6",
-			"--file",
-			"kdeglobals",
-			"--group",
-			"General",
-			"--key",
-			"ColorScheme",
-			&theme,
-		]) || self.run_command_status([
-			"kwriteconfig5",
-			"--file",
-			"kdeglobals",
-			"--group",
-			"General",
-			"--key",
-			"ColorScheme",
-			&theme,
-		]);
+		let theme_without_hyphens = theme.replace('-', "");
+		if theme_without_hyphens != theme && !candidates.contains(&theme_without_hyphens) {
+			candidates.push(theme_without_hyphens);
+		}
+
+		for theme in candidates {
+			if self.run_command_status(["plasma-apply-colorscheme", &theme]) {
+				return;
+			}
+
+			if self.run_command_status(["lookandfeeltool", "-a", &theme]) {
+				return;
+			}
+
+			if self.run_command_status([
+				"kwriteconfig6",
+				"--file",
+				"kdeglobals",
+				"--group",
+				"General",
+				"--key",
+				"ColorScheme",
+				&theme,
+			]) || self.run_command_status([
+				"kwriteconfig5",
+				"--file",
+				"kdeglobals",
+				"--group",
+				"General",
+				"--key",
+				"ColorScheme",
+				&theme,
+			]) {
+				return;
+			}
+		}
 	}
 
 	fn installed_themes(&self) -> BTreeSet<String> {
-		let mut themes = BTreeSet::new();
-
-		for theme in self.get_themes() {
-			themes.insert(theme);
-		}
-
-		for theme in self.get_kde_themes() {
-			themes.insert(theme);
-		}
-
-		return themes;
+		return self.get_themes().into_iter().collect();
 	}
 
 	fn find_light_variant(&self, theme: &str, installed: &BTreeSet<String>) -> Option<String> {
@@ -409,7 +419,7 @@ impl LinuxThemeSwitcher {
 		return directories;
 	}
 
-	fn kde_color_scheme_directories(&self) -> Vec<PathBuf> {
+	fn kde_colour_scheme_directories(&self) -> Vec<PathBuf> {
 		let mut directories = vec![
 			PathBuf::from("/usr/share/color-schemes"),
 			PathBuf::from("/usr/local/share/color-schemes"),

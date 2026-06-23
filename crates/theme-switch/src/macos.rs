@@ -1,5 +1,5 @@
-use tracing::error;
 use osakit::{Language, Script};
+use tracing::error;
 
 use crate::ThemeSwitcher;
 

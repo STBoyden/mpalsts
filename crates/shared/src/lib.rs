@@ -71,6 +71,14 @@ impl Default for AppState {
 	}
 }
 
+fn sanitise_threshold(value: f32, default: f32, min: f32, max: f32) -> f32 {
+	if !value.is_finite() {
+		return default;
+	}
+
+	return value.clamp(min, max);
+}
+
 #[derive(Debug, Error)]
 pub enum AppStateError {
 	#[error("failed to config directory")]
@@ -82,13 +90,33 @@ pub enum AppStateError {
 	#[error("failed to read config: {0}")]
 	ReadConfig(#[from] SpannedError),
 
-	#[error("failed to serialize config: {0}")]
-	SerializeConfig(#[from] ron::Error),
+	#[error("failed to serialise config: {0}")]
+	SerialiseConfig(#[from] ron::Error),
 }
 
 pub type Result<T> = std::result::Result<T, AppStateError>;
 
 impl AppState {
+	pub fn sanitised(mut self) -> Self {
+		self.sanitise();
+		return self;
+	}
+
+	pub fn sanitise(&mut self) {
+		self.lumens_threshold = sanitise_threshold(
+			self.lumens_threshold,
+			DEFAULT_LUMENS_THRESHOLD,
+			MIN_LUMENS_THRESHOLD,
+			MAX_LUMENS_THRESHOLD,
+		);
+		self.seconds_threshold = sanitise_threshold(
+			self.seconds_threshold,
+			DEFAULT_SECONDS_THRESHOLD,
+			MIN_SECONDS_THRESHOLD,
+			MAX_SECONDS_THRESHOLD,
+		);
+	}
+
 	pub fn read_config() -> Result<Self> {
 		let project_dir = PROJECT_DIR.as_ref().ok_or(AppStateError::NoConfigDir)?;
 
@@ -106,7 +134,7 @@ impl AppState {
 		let config_ron = File::open(&config_ron)?;
 		let config: AppState = ron::de::from_reader(config_ron)?;
 
-		return Ok(config);
+		return Ok(config.sanitised());
 	}
 
 	pub fn save_config(&self) -> Result<()> {
@@ -115,9 +143,10 @@ impl AppState {
 		let config_dir = project_dir.config_dir();
 		fs::create_dir_all(config_dir)?;
 
+		let config = self.clone().sanitised();
 		let config_ron = config_dir.join("config.ron");
 		let config_ron = BufWriter::new(File::create(&config_ron)?);
-		ron::Options::default().to_io_writer_pretty(config_ron, self, PrettyConfig::new())?;
+		ron::Options::default().to_io_writer_pretty(config_ron, &config, PrettyConfig::new())?;
 
 		return Ok(());
 	}
@@ -143,5 +172,36 @@ impl TryFrom<u8> for ThemeMode {
 			1 => Ok(ThemeMode::Dark),
 			_ => Err(ThemeModeError::InvalidValue),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn sanitised_config_replaces_non_finite_thresholds_with_defaults() {
+		let state = AppState {
+			lumens_threshold: f32::NAN,
+			seconds_threshold: f32::INFINITY,
+			..AppState::default()
+		}
+		.sanitised();
+
+		assert_eq!(state.lumens_threshold, DEFAULT_LUMENS_THRESHOLD);
+		assert_eq!(state.seconds_threshold, DEFAULT_SECONDS_THRESHOLD);
+	}
+
+	#[test]
+	fn sanitised_config_clamps_out_of_range_thresholds() {
+		let state = AppState {
+			lumens_threshold: -1.,
+			seconds_threshold: 999.,
+			..AppState::default()
+		}
+		.sanitised();
+
+		assert_eq!(state.lumens_threshold, MIN_LUMENS_THRESHOLD);
+		assert_eq!(state.seconds_threshold, MAX_SECONDS_THRESHOLD);
 	}
 }

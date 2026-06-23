@@ -1,8 +1,9 @@
 use std::{
 	borrow::Cow,
 	error::Error,
+	fmt,
 	fs::{self, File, OpenOptions, TryLockError},
-	io::{self, BufWriter, Read, Write},
+	io::{self, Read, Seek, SeekFrom, Write},
 	path::{Path, PathBuf},
 	process,
 	sync::{
@@ -35,6 +36,9 @@ pub enum ForkError {
 
 	#[error("daemon already running with pid {pid}")]
 	ExistingDaemon { pid: i64 },
+
+	#[error("daemon already running, but its PID file is empty or corrupted")]
+	ExistingDaemonUnknown,
 }
 
 #[derive(Debug, Error)]
@@ -62,6 +66,11 @@ pub enum RuntimeError {
 
 	#[error("no ambient light sensor found")]
 	NoSensor,
+}
+
+#[cfg(unix)]
+unsafe extern "C" {
+	fn kill(pid: std::ffi::c_int, sig: std::ffi::c_int) -> std::ffi::c_int;
 }
 
 #[derive(Debug, Error)]
@@ -168,6 +177,122 @@ impl Drop for AutoDeletingFile {
 	}
 }
 
+fn read_pid_file(pid_file_path: &Path) -> Result<Option<i64>, PIDFileError> {
+	let mut file = File::open(pid_file_path)?;
+	let mut buffer = String::new();
+	file.read_to_string(&mut buffer)?;
+
+	let pid = buffer.trim();
+	if pid.is_empty() {
+		return Ok(None);
+	}
+
+	let pid = pid
+		.parse::<i64>()
+		.map_err(|err| PIDFileError::CorruptedPID {
+			corrupted_pid: pid.to_string(),
+			error: err.into(),
+		})?;
+
+	if pid <= 0 {
+		return Err(PIDFileError::CorruptedPID {
+			corrupted_pid: pid.to_string(),
+			error: io::Error::new(io::ErrorKind::InvalidData, "PID must be positive").into(),
+		});
+	}
+
+	return Ok(Some(pid));
+}
+
+fn is_process_running(pid: i64) -> bool {
+	#[cfg(unix)]
+	{
+		const SIGNAL_EXISTS_CHECK: std::ffi::c_int = 0;
+		const EPERM: i32 = 1;
+
+		let Ok(pid) = std::ffi::c_int::try_from(pid) else {
+			return false;
+		};
+
+		if pid <= 0 {
+			return false;
+		}
+
+		if unsafe { kill(pid, SIGNAL_EXISTS_CHECK) } == 0 {
+			return true;
+		}
+
+		return matches!(io::Error::last_os_error().raw_os_error(), Some(EPERM));
+	}
+
+	#[cfg(not(unix))]
+	{
+		let _ = pid;
+		return false;
+	}
+}
+
+fn write_pid_to_file(pid_file: &mut File, pid: impl fmt::Display) -> Result<(), PIDFileError> {
+	pid_file.set_len(0)?;
+	pid_file.seek(SeekFrom::Start(0))?;
+	write!(pid_file, "{pid}")?;
+	pid_file.flush()?;
+	pid_file.sync_data()?;
+
+	return Ok(());
+}
+
+fn prepare_pid_file(config_dir: &Path, pid_file_path: &Path) -> Result<File, RuntimeError> {
+	fs::create_dir_all(config_dir).map_err(|err| RuntimeError::PIDFileError(err.into()))?;
+
+	let mut pid_file = OpenOptions::new()
+		.create(true)
+		.read(true)
+		.write(true)
+		.truncate(false)
+		.open(pid_file_path)
+		.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
+
+	match pid_file.try_lock() {
+		Ok(()) => {}
+		Err(TryLockError::WouldBlock) => {
+			let pid = read_pid_file(pid_file_path)
+				.ok()
+				.flatten()
+				.filter(|pid| is_process_running(*pid));
+			return Err(RuntimeError::ForkError(match pid {
+				Some(pid) => ForkError::ExistingDaemon { pid },
+				None => ForkError::ExistingDaemonUnknown,
+			}));
+		}
+		Err(TryLockError::Error(error)) => {
+			return Err(RuntimeError::PIDFileError(PIDFileError::IOError(error)));
+		}
+	}
+
+	match read_pid_file(pid_file_path) {
+		Ok(Some(pid)) if is_process_running(pid) => {
+			_ = pid_file.unlock();
+			return Err(RuntimeError::ForkError(ForkError::ExistingDaemon { pid }));
+		}
+		Ok(Some(pid)) => warn!("removing stale PID file for non-running daemon pid {pid}"),
+		Ok(None) => trace!("PID file is empty; reusing it"),
+		Err(error) => warn!(
+			"ignoring invalid PID file at {}: {error}",
+			pid_file_path.display()
+		),
+	}
+
+	pid_file
+		.set_len(0)
+		.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
+	pid_file
+		.seek(SeekFrom::Start(0))
+		.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
+
+	return Ok(pid_file);
+}
+
 fn daemon_mode(state: AppState) -> Result<Option<AutoDeletingFile>, RuntimeError> {
 	let config_dir = PROJECT_DIR
 		.as_ref()
@@ -177,37 +302,15 @@ fn daemon_mode(state: AppState) -> Result<Option<AutoDeletingFile>, RuntimeError
 		.config_dir();
 
 	let pid_file_path = config_dir.join("daemon.pid");
+	let mut pid_file = prepare_pid_file(config_dir, &pid_file_path)?;
 
-	if pid_file_path.exists()
-		&& let Ok(mut file) = File::open(&pid_file_path)
-	{
-		let mut buffer = String::new();
-		file
-			.read_to_string(&mut buffer)
-			.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
-
-		let pid = buffer.parse::<i64>().map_err(|err| {
-			RuntimeError::PIDFileError(PIDFileError::CorruptedPID {
-				corrupted_pid: buffer,
-				error: err.into(),
-			})
-		})?;
-
-		return Err(RuntimeError::ForkError(ForkError::ExistingDaemon { pid }));
-	}
-
-	if !config_dir.exists() {
-		fs::create_dir_all(config_dir)
-			.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
-	}
-
-	let pid_file = File::create(&pid_file_path)
-		.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
-
-	trace!("Created new PIDfile at {}", pid_file_path.display());
+	trace!("Prepared PIDfile at {}", pid_file_path.display());
 
 	return match fork() {
 		Ok(Fork::Parent(child_pid)) => {
+			write_pid_to_file(&mut pid_file, child_pid).map_err(RuntimeError::PIDFileError)?;
+			_ = pid_file.unlock();
+
 			info!("Daemon process has been started. Child PID: {child_pid}");
 			Ok(None)
 		}
@@ -223,25 +326,13 @@ fn daemon_mode(state: AppState) -> Result<Option<AutoDeletingFile>, RuntimeError
 			);
 			let _enter = span.enter();
 
-			pid_file
-				.lock()
-				.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
-
-			let mut writer = BufWriter::new(&pid_file);
-
-			writer
-				.write_fmt(format_args!("{child_pid}"))
-				.map_err(|err| RuntimeError::PIDFileError(PIDFileError::IOError(err)))?;
-
-			trace!("Wrote PID to pidfile: {child_pid}");
-
-			drop(writer);
-
-			_ = pid_file.unlock();
+			drop(pid_file);
 
 			span.in_scope(|| {
 				let pid_file =
 					AutoDeletingFile::new(&pid_file_path, true).expect("could not obtain pid file!");
+
+				trace!("Daemon child running with pid {child_pid}");
 
 				runtime(Some(RuntimeMode::Interactive), state).expect("runtime failed!");
 
