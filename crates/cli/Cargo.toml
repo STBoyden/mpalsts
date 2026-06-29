@@ -12,7 +12,6 @@ mpalsts_gui = { path = "../gui",  optional = true }
 mpalsts_sensors.path = "../als"
 mpalsts_shared.path = "../shared"
 mpalsts_theme_switch.path = "../theme-switch"
-mpalsts_sync.path = "../sync"
 
 anyhow.workspace = true
 dotenv.workspace = true
